@@ -193,17 +193,17 @@
                 { id: 'imperium', name: 'Globalna Sieć Płaczu', desc: '+3000$ na sekundę. Pełna dominacja!', baseCost: 120000, value: 3000, kind: 'cps' }
             ],
             czemooo: [
-                { id: 'c_click', name: 'Błyskawica Przemka x2', desc: 'Podwaja moc kliknięcia Przemka', baseCost: 500000, value: 1, kind: 'click' },
-                { id: 'c_neony', name: 'Neonowa Poświata', desc: '+10 000$ na sekundę', baseCost: 1000000, value: 10000, kind: 'cps' },
-                { id: 'c_grzmot', name: 'Kosmiczny Grzmot', desc: '+50 000$ na sekundę', baseCost: 5000000, value: 50000, kind: 'cps' },
-                { id: 'c_awaria', name: 'Absolutna Awaria', desc: '+250 000$ na sekundę', baseCost: 25000000, value: 250000, kind: 'cps' },
-                { id: 'c_bos', name: 'Władca Czemoóó', desc: '+1 000 000$ na sekundę', baseCost: 100000000, value: 1000000, kind: 'cps' }
+                { id: 'c_click', name: 'Błyskawica Przemka x2', desc: 'Podwaja moc kliknięcia Przemka', baseCost: 5000000, value: 1, kind: 'click' },
+                { id: 'c_neony', name: 'Neonowa Poświata', desc: '+100 000$ na sekundę', baseCost: 10000000, value: 100000, kind: 'cps' },
+                { id: 'c_grzmot', name: 'Kosmiczny Grzmot', desc: '+500 000$ na sekundę', baseCost: 50000000, value: 500000, kind: 'cps' },
+                { id: 'c_awaria', name: 'Absolutna Awaria', desc: '+2 500 000$ na sekundę', baseCost: 250000000, value: 2500000, kind: 'cps' },
+                { id: 'c_bos', name: 'Władca Czemoóó', desc: '+10 000 000$ na sekundę', baseCost: 1000000000, value: 10000000, kind: 'cps' }
             ]
         };
 
         let costs = {
             dorota: { click: 25, kawka: 40, tvn: 150, show: 600, wywiad: 2200, płacz: 8500, menedzer: 35000, imperium: 120000 },
-            czemooo: { c_click: 500000, c_neony: 1000000, c_grzmot: 5000000, c_awaria: 25000000, c_bos: 100000000 }
+            czemooo: { c_click: 5000000, c_neony: 10000000, c_grzmot: 50000000, c_awaria: 250000000, c_bos: 1000000000 }
         };
 
         function formatMoney(amount) {
@@ -285,7 +285,6 @@
             document.getElementById('game-body').className = 'world-czemooo';
             document.getElementById('world-label').innerText = "Świat 2: Czemoóó";
             
-            // Ustawienie poprawnego pliku czemooo.jpg dla drugiego świata
             let container = document.getElementById('image-container');
             container.innerHTML = `<img id="main-image" src="czemooo.jpg" class="char-image" alt="Postać" onclick="handleClick(event)" onerror="handleImageError(this)">`;
             
