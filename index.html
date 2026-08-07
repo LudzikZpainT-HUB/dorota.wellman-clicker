@@ -2,292 +2,372 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <title>Dorota Wellman Clicker</title>
+    <title>Multiwersum Clicker: Dorota vs Czemoóó</title>
     <style>
-        body { 
-            text-align: center; 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: #f0f2f5; 
+        body {
+            text-align: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
             margin: 0;
             padding: 20px;
+            transition: background 0.5s;
         }
 
-        h1 {
-            color: #1f2937;
-            margin-bottom: 30px;
+        h1 { color: #1f2937; margin-bottom: 10px; }
+
+        .world-label {
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            display: inline-block;
         }
+
+        /* STYL DOROTY */
+        body.world-dorota { background: #f0f2f5; }
+        body.world-dorota .world-label { background: #dcfce7; color: #16a34a; }
+        body.world-dorota .main-container { border-color: #16a34a; }
+        body.world-dorota .money-counter { color: #16a34a; }
+
+        /* STYL CZEMOOO */
+        body.world-czemooo { background: #0c0a3e; color: white; }
+        body.world-czemooo h1 { color: #c7d2fe; }
+        body.world-czemooo .world-label { background: #3b0764; color: #a855f7; }
+        body.world-czemooo .main-container { background: #1e1b4b; border-color: #a855f7; box-shadow: 0 4px 15px rgba(168, 85, 247, 0.4); }
+        body.world-czemooo .money-counter { color: #22d3ee; }
+        body.world-czemooo .cps-counter { color: #e0f2fe; }
+        body.world-czemooo .clicker-box, body.world-czemooo .upgrades-box { background: #312e81; color: white; border: 1px solid #4338ca; }
+        body.world-czemooo .upgrades-title { color: #e0e7ff; border-bottom-color: #4338ca; }
+        body.world-czemooo .upgrade-item { background: #4c1d95; border-color: #6d28d9; }
+        body.world-czemooo .upgrade-item.affordable { background: #5b21b6; border-color: #a855f7; }
+        body.world-czemooo .upgrade-item.affordable:hover { background: #6d28d9; }
+        body.world-czemooo .upgrade-info .title { color: white; }
+        body.world-czemooo .upgrade-info .desc { color: #c4b5fd; }
+        body.world-czemooo .upgrade-price { background: #7e22ce; color: white; }
+        body.world-czemooo .upgrade-item.affordable .upgrade-price { background: #c084fc; color: #581c87; }
 
         .main-container {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            max-width: 900px;
-            margin: 0 auto;
-            flex-wrap: wrap;
+            display: flex; justify-content: center; gap: 20px; max-width: 900px; margin: 0 auto;
+            flex-wrap: wrap; padding: 20px; border-radius: 15px; border: 4px solid; background: white; transition: all 0.5s;
         }
+        body.world-czemooo .main-container { background: #1e1b4b; }
 
         .clicker-box, .upgrades-box {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            width: 380px;
-            box-sizing: border-box;
+            background: white; padding: 20px; border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 380px; box-sizing: border-box;
+            transition: all 0.5s;
         }
 
-        .money-counter {
-            font-size: 42px;
+        .money-counter { font-size: 36px; font-weight: bold; margin-bottom: 5px; }
+        .cps-counter { font-size: 16px; font-weight: bold; color: #4b5563; margin-bottom: 20px; }
+
+        .image-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .char-image {
+            width: 220px; height: 220px; object-fit: cover; border-radius: 20px; cursor: pointer;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2); transition: transform 0.1s ease, box-shadow 0.5s; user-select: none;
+            border: 4px solid;
+            display: block;
+        }
+        body.world-dorota .char-image { border-color: #16a34a; }
+        body.world-czemooo .char-image { border-color: #a855f7; box-shadow: 0 8px 20px rgba(168, 85, 247, 0.5); }
+        .char-image:active { transform: scale(0.93); }
+
+        .image-fallback {
+            width: 220px; height: 220px; border-radius: 20px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2); user-select: none; border: 4px solid #a855f7;
+            background: #4c1d95; color: white; text-align: center;
+        }
+
+        .floating-text {
+            position: absolute;
             font-weight: bold;
-            color: #16a34a;
-            margin-bottom: 5px;
-        }
-
-        .cps-counter {
-            font-size: 16px;
-            font-weight: bold;
-            color: #4b5563;
-            margin-bottom: 20px;
-        }
-
-        /* Zdjęcie Doroty dorota.jpg */
-        #dorota-image {
-            width: 220px;
-            height: 220px;
-            object-fit: cover;
-            border-radius: 20px;
-            cursor: pointer;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-            transition: transform 0.1s ease;
+            font-size: 20px;
+            pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
             user-select: none;
-            border: 4px solid #16a34a;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+        body.world-dorota .floating-text { color: #16a34a; }
+        body.world-czemooo .floating-text { color: #22d3ee; }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-60px) scale(1.2); }
         }
 
-        #dorota-image:active {
-            transform: scale(0.93);
+        #czemooo-portal {
+            margin-top: 20px; padding: 12px; border-radius: 10px; transition: all 0.3s;
+            background: #374151; border: 2px solid #1f2937; 
+            opacity: 0.9; cursor: not-allowed;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
         }
+        #czemooo-portal h3 { margin: 0 0 5px 0; font-size: 15px; color: #f3f4f6; transition: color 0.3s; }
+        #czemooo-portal p { margin: 0; font-size: 12px; color: #9ca3af; transition: color 0.3s; }
+
+        #czemooo-portal.unlocked {
+            background: #fee2e2; border-color: #ef4444; opacity: 1; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+        }
+        #czemooo-portal.unlocked:hover { background: #fecaca; transform: translateY(-2px); }
+        #czemooo-portal.unlocked h3 { color: #991b1b; }
+        #czemooo-portal.unlocked p { color: #7f1d1d; }
 
         .upgrades-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #1f2937;
-            margin-bottom: 15px;
-            text-align: left;
-            border-bottom: 2px solid #f3f4f6;
-            padding-bottom: 10px;
+            font-size: 20px; font-weight: bold; color: #1f2937; margin-bottom: 15px;
+            text-align: left; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px; transition: all 0.5s;
         }
 
-        .upgrade-list {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 400px;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
-
+        .upgrade-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; padding-right: 5px; }
         .upgrade-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: #f9fafb;
-            border: 1px solid #d1d5db;
-            padding: 12px 15px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
+            display: flex; justify-content: space-between; align-items: center; background: #f9fafb;
+            border: 1px solid #d1d5db; padding: 10px 15px; border-radius: 8px; cursor: pointer; transition: all 0.2s;
             text-align: left;
         }
-
-        .upgrade-item.affordable {
-            background: #f0fdf4;
-            border-color: #22c55e;
-        }
-
-        .upgrade-item.affordable:hover {
-            background: #dcfce7;
-        }
-
-        .upgrade-info .title {
-            font-weight: bold;
-            color: #111827;
-            font-size: 14px;
-        }
-
-        .upgrade-info .desc {
-            font-size: 12px;
-            color: #4b5563;
-            margin-top: 3px;
-            font-weight: 500;
-        }
-
+        .upgrade-item.affordable:hover { background: #dcfce7; transform: translateX(2px); }
+        .upgrade-info .title { font-weight: bold; color: #111827; font-size: 14px; transition: all 0.5s; }
+        .upgrade-info .desc { font-size: 12px; color: #4b5563; margin-top: 2px; font-weight: 500; transition: all 0.5s; }
         .upgrade-price {
-            background: #e5e7eb;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 13px;
-            color: #1f2937;
-            white-space: nowrap;
-            margin-left: 10px;
+            background: #e5e7eb; padding: 6px 10px; border-radius: 6px; font-weight: bold;
+            font-size: 13px; color: #1f2937; white-space: nowrap; margin-left: 10px; transition: all 0.5s;
         }
+        .upgrade-item.affordable .upgrade-price { background: #22c55e; color: white; }
 
-        .upgrade-item.affordable .upgrade-price {
-            background: #22c55e;
-            color: white;
-        }
+        #reset-btn { margin-top: 30px; padding: 8px 16px; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; border-radius: 6px; cursor: pointer; font-size: 12px;}
+        #reset-btn:hover { background: #bae6fd; }
     </style>
 </head>
-<body>
+<body class="world-dorota" id="game-body">
 
-    <h1>Dorota Wellman Clicker</h1>
+    <h1>Multiwersum Clicker</h1>
+    <div class="world-label" id="world-label">Świat 1: Dorota Wellman</div>
 
     <div class="main-container">
-        <!-- Lewy panel -->
         <div class="clicker-box">
             <div id="money-display" class="money-counter">$0</div>
             <div id="rate-display" class="cps-counter">Zarabiasz: $0/s</div>
-            
-            <img id="dorota-image" src="dorota.jpg" alt="Dorota Płakał" onclick="handleClick()">
+
+            <div class="image-container" id="image-container">
+                <img id="main-image" src="dorota.jpg" class="char-image" alt="Postać" onclick="handleClick(event)" onerror="handleImageError(this)">
+            </div>
+
+            <div id="czemooo-portal" onclick="switchToCzemooo()">
+                <h3 id="portal-title">🔒 PORTAL ZAMKNIĘTY</h3>
+                <p id="portal-desc">Wymagane do przejścia: 1.00b</p>
+            </div>
         </div>
 
-        <!-- Prawy panel: Ulepszenia -->
         <div class="upgrades-box">
             <div class="upgrades-title">Ulepszenia</div>
-            <div class="upgrade-list">
-                
-                <div class="upgrade-item" id="up-click" onclick="buyUpgrade('click', 25, 1)">
-                    <div class="upgrade-info">
-                        <div class="title">Moc Kliknięcia x2</div>
-                        <div class="desc">Podwaja zysk z jednego kliknięcia</div>
-                    </div>
-                    <div class="upgrade-price" id="price-click">$25</div>
-                </div>
-
-                <div class="upgrade-item" id="up-kawka" onclick="buyUpgrade('kawka', 40, 1, 'cps')">
-                    <div class="upgrade-info">
-                        <div class="title">Poranna Kawa</div>
-                        <div class="desc">+1$ na sekundę (musi być mocna!)</div>
-                    </div>
-                    <div class="upgrade-price" id="price-kawka">$40</div>
-                </div>
-
-                <div class="upgrade-item" id="up-tvn" onclick="buyUpgrade('tvn', 150, 5, 'cps')">
-                    <div class="upgrade-info">
-                        <div class="title">Kłótnia w Studio</div>
-                        <div class="desc">+5$ na sekundę za ostrą wymianę zdań</div>
-                    </div>
-                    <div class="upgrade-price" id="price-tvn">$150</div>
-                </div>
-
-                <div class="upgrade-item" id="up-show" onclick="buyUpgrade('show', 600, 25, 'cps')">
-                    <div class="upgrade-info">
-                        <div class="title">Własny Talk-Show</div>
-                        <div class="desc">+25$ na sekundę, bo kto zatrzyma Dorotę?</div>
-                    </div>
-                    <div class="upgrade-price" id="price-show">$600</div>
-                </div>
-
-                <div class="upgrade-item" id="up-wywiad" onclick="buyUpgrade('wywiad', 2200, 75, 'cps')">
-                    <div class="upgrade-info">
-                        <div class="title">Gorący Wywiad</div>
-                        <div class="desc">+75$ na sekundę z trudnymi pytaniami</div>
-                    </div>
-                    <div class="upgrade-price" id="price-wywiad">$2200</div>
-                </div>
-
-                <div class="upgrade-item" id="up-płacz" onclick="buyUpgrade('płacz', 8500, 250, 'cps')">
-                    <div class="upgrade-info">
-                        <div class="title">Instytut Dramatu i Łez</div>
-                        <div class="desc">+250$ na sekundę czystego dramatyzmu</div>
-                    </div>
-                    <div class="upgrade-price" id="price-płacz">$8500</div>
-                </div>
-
-                <div class="upgrade-item" id="up-menedzer" onclick="buyUpgrade('menedzer', 35000, 900, 'cps')">
-                    <div class="upgrade-info">
-                        <div class="title">Menedżer Kryzysowy</div>
-                        <div class="desc">+900$ na sekundę ratowania wizerunku</div>
-                    </div>
-                    <div class="upgrade-price" id="price-menedzer">$35000</div>
-                </div>
-
-                <div class="upgrade-item" id="up-imperium" onclick="buyUpgrade('imperium', 120000, 3000, 'cps')">
-                    <div class="upgrade-info">
-                        <div class="title">Globalna Sieć Płaczu</div>
-                        <div class="desc">+3000$ na sekundę. Pora na pełną dominację!</div>
-                    </div>
-                    <div class="upgrade-price" id="price-imperium">$120000</div>
-                </div>
-
-            </div>
+            <div class="upgrade-list" id="upgrade-container"></div>
         </div>
     </div>
 
-    <!-- Odtwarzacz dźwięku plakal.mp3 -->
-    <audio id="plakal-sound" src="plakal.mp3"></audio>
+    <button id="reset-btn" onclick="fullReset()">Zresetuj grę</button>
+
+    <audio id="sound-dorota" src="plakal.mp3"></audio>
+    <audio id="sound-czemooo" src="czemooo.mp3"></audio>
 
     <script>
         let money = 0;
         let moneyPerClick = 1;
         let moneyPerSecond = 0;
+        let currentWorld = 'dorota';
 
-        let costs = {
-            click: 25,
-            kawka: 40,
-            tvn: 150,
-            show: 600,
-            wywiad: 2200,
-            płacz: 8500,
-            menedzer: 35000,
-            imperium: 120000
+        let upgradesData = {
+            dorota: [
+                { id: 'click', name: 'Moc Kliknięcia x2', desc: 'Podwaja zysk z jednego kliknięcia', baseCost: 25, value: 1, kind: 'click' },
+                { id: 'kawka', name: 'Poranna Kawa', desc: '+1$ na sekundę (musi być mocna!)', baseCost: 40, value: 1, kind: 'cps' },
+                { id: 'tvn', name: 'Kłótnia w Studio', desc: '+5$ na sekundę za ostrą wymianę zdań', baseCost: 150, value: 5, kind: 'cps' },
+                { id: 'show', name: 'Własny Talk-Show', desc: '+25$ na sekundę, bo kto zatrzyma Dorotę?', baseCost: 600, value: 25, kind: 'cps' },
+                { id: 'wywiad', name: 'Gorący Wywiad', desc: '+75$ na sekundę z trudnymi pytaniami', baseCost: 2200, value: 75, kind: 'cps' },
+                { id: 'płacz', name: 'Instytut Dramatu i Łez', desc: '+250$ na sekundę czystego dramatyzmu', baseCost: 8500, value: 250, kind: 'cps' },
+                { id: 'menedzer', name: 'Menedżer Kryzysowy', desc: '+900$ na sekundę ratowania wizerunku', baseCost: 35000, value: 900, kind: 'cps' },
+                { id: 'imperium', name: 'Globalna Sieć Płaczu', desc: '+3000$ na sekundę. Pełna dominacja!', baseCost: 120000, value: 3000, kind: 'cps' }
+            ],
+            czemooo: [
+                { id: 'c_click', name: 'Błyskawica Przemka x2', desc: 'Podwaja moc kliknięcia Przemka', baseCost: 500000, value: 1, kind: 'click' },
+                { id: 'c_neony', name: 'Neonowa Poświata', desc: '+10 000$ na sekundę', baseCost: 1000000, value: 10000, kind: 'cps' },
+                { id: 'c_grzmot', name: 'Kosmiczny Grzmot', desc: '+50 000$ na sekundę', baseCost: 5000000, value: 50000, kind: 'cps' },
+                { id: 'c_awaria', name: 'Absolutna Awaria', desc: '+250 000$ na sekundę', baseCost: 25000000, value: 250000, kind: 'cps' },
+                { id: 'c_bos', name: 'Władca Czemoóó', desc: '+1 000 000$ na sekundę', baseCost: 100000000, value: 1000000, kind: 'cps' }
+            ]
         };
 
-        function handleClick() {
-            money += moneyPerClick;
-            updateDisplay();
+        let costs = {
+            dorota: { click: 25, kawka: 40, tvn: 150, show: 600, wywiad: 2200, płacz: 8500, menedzer: 35000, imperium: 120000 },
+            czemooo: { c_click: 500000, c_neony: 1000000, c_grzmot: 5000000, c_awaria: 25000000, c_bos: 100000000 }
+        };
 
-            let sound = document.getElementById('plakal-sound');
-            sound.currentTime = 0;
-            sound.play().catch(error => {
-                console.log("Czekanie na interakcję z dźwiękiem.");
-            });
+        function formatMoney(amount) {
+            if (amount >= 1e9) return (amount / 1e9).toFixed(2) + 'b';
+            if (amount >= 1e6) return (amount / 1e6).toFixed(2) + 'm';
+            if (amount >= 1e3) return (amount / 1e3).toFixed(1) + 'k';
+            return "$" + amount;
         }
 
-        function buyUpgrade(type, baseCost, value, kind = 'click') {
-            if (money >= costs[type]) {
-                money -= costs[type];
-                
+        function handleClick(event) {
+            money += moneyPerClick;
+            createFloatingText(event);
+
+            let soundId = (currentWorld === 'dorota') ? 'sound-dorota' : 'sound-czemooo';
+            let sound = document.getElementById(soundId);
+            if(sound) {
+                sound.currentTime = 0;
+                sound.play().catch(e => console.log("Audio zablokowane"));
+            }
+
+            updateDisplay();
+        }
+
+        function createFloatingText(event) {
+            let container = document.getElementById('image-container');
+            let rect = container.getBoundingClientRect();
+            
+            let x = event.clientX - rect.left;
+            let y = event.clientY - rect.top;
+
+            let el = document.createElement('div');
+            el.className = 'floating-text';
+            el.innerText = '+' + formatMoney(moneyPerClick);
+            
+            let randomOffset = (Math.random() - 0.5) * 40;
+            el.style.left = (x + randomOffset) + 'px';
+            el.style.top = y + 'px';
+
+            container.appendChild(el);
+
+            setTimeout(() => {
+                el.remove();
+            }, 800);
+        }
+
+        function handleImageError(imgElement) {
+            let parent = imgElement.parentElement;
+            let fallback = document.createElement('div');
+            fallback.className = 'image-fallback';
+            fallback.innerText = (currentWorld === 'dorota') ? 'Dorota Wellman' : 'Czemoóó';
+            fallback.onclick = (e) => handleClick(e);
+            parent.replaceChild(fallback, imgElement);
+        }
+
+        function buyUpgrade(id, baseValue, kind) {
+            let worldCosts = costs[currentWorld];
+            let cost = worldCosts[id];
+
+            if (money >= cost) {
+                money -= cost;
+
                 if (kind === 'click') {
                     moneyPerClick *= 2;
-                    costs[type] = Math.floor(costs[type] * 1.8);
+                    worldCosts[id] = Math.floor(cost * 1.8);
                 } else {
-                    moneyPerSecond += value;
-                    costs[type] = Math.floor(costs[type] * 1.3);
+                    moneyPerSecond += baseValue;
+                    worldCosts[id] = Math.floor(cost * 1.3);
                 }
 
-                document.getElementById('price-' + type).innerText = "$" + costs[type];
+                document.getElementById('price-' + id).innerText = formatMoney(worldCosts[id]);
                 updateDisplay();
             }
         }
 
-        function updateDisplay() {
-            document.getElementById('money-display').innerText = "$" + money;
-            document.getElementById('rate-display').innerText = "Zarabiasz: $" + moneyPerSecond + "/s";
+        function switchToCzemooo() {
+            if (money < 1000000000) return;
 
-            for (let key in costs) {
-                let itemElement = document.getElementById('up-' + key);
-                if (money >= costs[key]) {
-                    itemElement.classList.add('affordable');
+            currentWorld = 'czemooo';
+            document.getElementById('game-body').className = 'world-czemooo';
+            document.getElementById('world-label').innerText = "Świat 2: Czemoóó";
+            
+            // Ustawienie poprawnego pliku czemooo.jpg dla drugiego świata
+            let container = document.getElementById('image-container');
+            container.innerHTML = `<img id="main-image" src="czemooo.jpg" class="char-image" alt="Postać" onclick="handleClick(event)" onerror="handleImageError(this)">`;
+            
+            document.getElementById('czemooo-portal').style.display = 'none';
+            
+            moneyPerSecond = 0;
+            renderUpgrades();
+            updateDisplay();
+        }
+
+        function renderUpgrades() {
+            let container = document.getElementById('upgrade-container');
+            container.innerHTML = '';
+
+            let list = upgradesData[currentWorld];
+            list.forEach(up => {
+                let currentCost = costs[currentWorld][up.id];
+                let item = document.createElement('div');
+                item.className = 'upgrade-item';
+                item.id = 'up-' + up.id;
+                item.onclick = () => buyUpgrade(up.id, up.value, up.kind);
+
+                item.innerHTML = `
+                    <div class="upgrade-info">
+                        <div class="title">${up.name}</div>
+                        <div class="desc">${up.desc}</div>
+                    </div>
+                    <div class="upgrade-price" id="price-${up.id}">${formatMoney(currentCost)}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function updateDisplay() {
+            document.getElementById('money-display').innerText = formatMoney(money);
+            document.getElementById('rate-display').innerText = "Zarabiasz: " + formatMoney(moneyPerSecond) + "/s";
+
+            if (currentWorld === 'dorota') {
+                let portal = document.getElementById('czemooo-portal');
+                let pTitle = document.getElementById('portal-title');
+                let pDesc = document.getElementById('portal-desc');
+
+                if (money >= 1000000000) {
+                    portal.classList.add('unlocked');
+                    pTitle.innerText = "✨ PORTAL OTWARTY! ✨";
+                    pDesc.innerText = "Kliknij, aby wejść do Świata Czemoóó!";
                 } else {
-                    itemElement.classList.remove('affordable');
+                    portal.classList.remove('unlocked');
+                    pTitle.innerText = "🔒 PORTAL ZAMKNIĘTY";
+                    pDesc.innerText = "Wymagane do przejścia: 1.00b";
                 }
+            }
+
+            let currentList = upgradesData[currentWorld];
+            currentList.forEach(up => {
+                let el = document.getElementById('up-' + up.id);
+                if (el) {
+                    let cost = costs[currentWorld][up.id];
+                    if (money >= cost) {
+                        el.classList.add('affordable');
+                    } else {
+                        el.classList.remove('affordable');
+                    }
+                }
+            });
+        }
+
+        function fullReset() {
+            if(confirm("Na pewno zresetować całą grę?")) {
+                location.reload();
             }
         }
 
         setInterval(() => {
-            money += moneyPerSecond;
-            updateDisplay();
+            if (moneyPerSecond > 0) {
+                money += moneyPerSecond;
+                updateDisplay();
+            }
         }, 1000);
+
+        renderUpgrades();
+        updateDisplay();
     </script>
 </body>
 </html>
