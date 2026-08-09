@@ -2,6 +2,7 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Multiwersum Clicker: Dorota vs Czemoóó</title>
     <style>
         body {
@@ -11,6 +12,7 @@
             margin: 0;
             padding: 20px;
             transition: background 0.5s;
+            touch-action: manipulation; /* Blokuje podwójne kliknięcie powiększające na mobile */
         }
 
         h1 { color: #1f2937; margin-bottom: 10px; }
@@ -72,6 +74,7 @@
         .char-image {
             width: 220px; height: 220px; object-fit: cover; border-radius: 20px; cursor: pointer;
             box-shadow: 0 8px 20px rgba(0,0,0,0.2); transition: transform 0.1s ease, box-shadow 0.5s; user-select: none;
+            -webkit-user-select: none; -webkit-touch-callout: none;
             border: 4px solid;
             display: block;
         }
@@ -231,8 +234,12 @@
             let container = document.getElementById('image-container');
             let rect = container.getBoundingClientRect();
             
-            let x = event.clientX - rect.left;
-            let y = event.clientY - rect.top;
+            // Obsługa kliknięć myszką oraz dotknięć palcem na telefonie
+            let clientX = event.clientX || (event.touches && event.touches[0].clientX);
+            let clientY = event.clientY || (event.touches && event.touches[0].clientY);
+
+            let x = clientX - rect.left;
+            let y = clientY - rect.top;
 
             let el = document.createElement('div');
             el.className = 'floating-text';
