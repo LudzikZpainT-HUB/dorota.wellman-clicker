@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ludzikzpaint-hub.github.io/dorota.wellman-clicker/sitemap.xml

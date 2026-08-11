@@ -11,6 +11,17 @@
     <link rel="alternate icon" href="favicon.ico" sizes="16x16 32x32 48x48">
     <link rel="apple-touch-icon" href="favicon-180.png">
     <meta name="theme-color" content="#16a34a">
+
+    <!-- Opis dla wyszukiwarek i podglądu przy wysyłaniu linku -->
+    <meta name="description" content="Multiwersum Clicker: Dorota vs Czemoóó - darmowa gra clicker w przeglądarce. Klikaj, kupuj ulepszenia, otwórz portal do Świata Czemoóó i wbij się na wspólną topkę pieniędzy.">
+    <link rel="canonical" href="https://ludzikzpaint-hub.github.io/dorota.wellman-clicker/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Multiwersum Clicker: Dorota vs Czemoóó">
+    <meta property="og:description" content="Klikaj, kupuj ulepszenia, otwórz portal do Świata Czemoóó i wbij się na wspólną topkę pieniędzy.">
+    <meta property="og:url" content="https://ludzikzpaint-hub.github.io/dorota.wellman-clicker/">
+    <meta property="og:image" content="https://ludzikzpaint-hub.github.io/dorota.wellman-clicker/dorota.jpg">
+    <meta name="twitter:card" content="summary_large_image">
     <style>
         body {
             text-align: center;
@@ -150,8 +161,14 @@
         }
         .upgrade-item.affordable .upgrade-price { background: #22c55e; color: white; }
 
-        #reset-btn { margin-top: 30px; padding: 8px 16px; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; border-radius: 6px; cursor: pointer; font-size: 12px;}
-        #reset-btn:hover { background: #bae6fd; }
+        .footer-buttons { margin-top: 30px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+        #reset-btn, #sound-btn {
+            padding: 8px 16px; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc;
+            border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit;
+        }
+        #reset-btn:hover, #sound-btn:hover { background: #bae6fd; }
+        #sound-btn.muted { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+        #sound-btn.muted:hover { background: #fecaca; }
 
         .upgrade-count {
             font-size: 11px; font-weight: bold; color: #64748b; margin-left: 4px;
@@ -288,7 +305,10 @@
 
     <div id="board-main"></div>
 
-    <button id="reset-btn" onclick="fullReset()">Zresetuj grę</button>
+    <div class="footer-buttons">
+        <button id="sound-btn" onclick="toggleSound()"></button>
+        <button id="reset-btn" onclick="fullReset()">Zresetuj grę</button>
+    </div>
 
     <div id="app-version"></div>
 
@@ -298,7 +318,7 @@
     <script>
         // Wersja aplikacji - podbijana automatycznie przy każdym commicie
         // przez scripts/bump-version.sh (hook pre-commit). Nie edytuj ręcznie.
-        const APP_VERSION = '1.0.6';
+        const APP_VERSION = '1.0.7';
 
         // === SUPABASE ===
         // Wklej tu dane swojego projektu (Supabase → Project Settings → API).
@@ -1024,15 +1044,43 @@
             return '$' + Math.floor(amount);
         }
 
+        // Ustawienie dźwięku jest wspólne dla przeglądarki, a nie zapisywane przy koncie -
+        // wyciszenie ma zostać wyciszeniem także po przelogowaniu i u gościa
+        const SOUND_KEY = 'multiwersum-sound-v1';
+        let soundMuted = (lsGet(SOUND_KEY) === 'off');
+
+        function renderSoundButton() {
+            let btn = document.getElementById('sound-btn');
+            btn.innerText = soundMuted ? '🔇 Dźwięk wyłączony' : '🔊 Dźwięk włączony';
+            btn.className = soundMuted ? 'muted' : '';
+            btn.title = soundMuted ? 'Kliknij, aby włączyć dźwięk' : 'Kliknij, aby wyciszyć';
+        }
+
+        function toggleSound() {
+            soundMuted = !soundMuted;
+            lsSet(SOUND_KEY, soundMuted ? 'off' : 'on');
+
+            if (soundMuted) {
+                // ucinamy to, co już leci
+                ['sound-dorota', 'sound-czemooo'].forEach(id => {
+                    let audio = document.getElementById(id);
+                    if (audio) { audio.pause(); audio.currentTime = 0; }
+                });
+            }
+            renderSoundButton();
+        }
+
         function handleClick(event) {
             money += moneyPerClick;
             createFloatingText(event);
 
-            let soundId = (currentWorld === 'dorota') ? 'sound-dorota' : 'sound-czemooo';
-            let sound = document.getElementById(soundId);
-            if(sound) {
-                sound.currentTime = 0;
-                sound.play().catch(e => console.log("Audio zablokowane"));
+            if (!soundMuted) {
+                let soundId = (currentWorld === 'dorota') ? 'sound-dorota' : 'sound-czemooo';
+                let sound = document.getElementById(soundId);
+                if (sound) {
+                    sound.currentTime = 0;
+                    sound.play().catch(e => console.log("Audio zablokowane"));
+                }
             }
 
             updateDisplay();
@@ -1277,6 +1325,7 @@
               + 'Chroni to przed przypadkowym wejściem na Twój postęp, ale nie przed kimś, '
               + 'kto zna narzędzia przeglądarki. Nie używaj tu hasła, którego używasz gdzie indziej.';
 
+        renderSoundButton();
         dropOldSaves();
         recalcStats();
         applyWorldVisuals();
