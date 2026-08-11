@@ -221,6 +221,7 @@
         .board-table tr.me { background: #dcfce7; }
         body.world-czemooo .board-table tr.me { background: #5b21b6; }
         .board-empty { font-size: 12px; color: #94a3b8; text-align: center; padding: 14px; }
+        .board-mode { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 6px; letter-spacing: 0.5px; }
 
         #app-version {
             margin-top: 15px; font-size: 11px; letter-spacing: 1px; color: #94a3b8;
@@ -249,11 +250,7 @@
 
             <div id="board-auth"></div>
 
-            <div class="auth-note">
-                Konta i hasła są zapisywane tylko w tej przeglądarce, na tym urządzeniu.
-                Chroni to przed przypadkowym wejściem na Twój postęp, ale nie przed kimś,
-                kto zna narzędzia przeglądarki. Nie używaj tu hasła, którego używasz gdzie indziej.
-            </div>
+            <div class="auth-note" id="auth-note"></div>
         </div>
     </div>
 
@@ -294,7 +291,21 @@
     <script>
         // Wersja aplikacji - podbijana automatycznie przy każdym commicie
         // przez scripts/bump-version.sh (hook pre-commit). Nie edytuj ręcznie.
-        const APP_VERSION = '1.0.3';
+        const APP_VERSION = '1.0.4';
+
+        // === SUPABASE ===
+        // Wklej tu dane swojego projektu (Supabase → Project Settings → API).
+        // anonKey jest kluczem publicznym, przeznaczonym do trzymania w kodzie strony -
+        // o bezpieczeństwo danych dbają reguły RLS z supabase/schema.sql.
+        // Puste wartości = tryb lokalny: konta i topka tylko w tej przeglądarce.
+        const SUPABASE_CONFIG = {
+            url: '',
+            anonKey: ''
+        };
+
+        function cloudEnabled() {
+            return !!(SUPABASE_CONFIG.url && SUPABASE_CONFIG.anonKey);
+        }
 
         // === BALANS ===
         // Cena rośnie z każdym zakupem, zysk doliczany jest liniowo.
@@ -422,6 +433,13 @@
 
             let data = { version: 2, money: money, currentWorld: currentWorld, owned: owned };
 
+            if (profile.type === 'cloud') {
+                // Lokalnie zapisujemy od razu, do chmury dosyłamy rzadziej (syncCloud)
+                writeCloudCache(profile.nick, Date.now());
+                cloudDirty = true;
+                return;
+            }
+
             if (profile.type === 'guest') {
                 lsSet(GUEST_SAVE_KEY, JSON.stringify(data));
                 return;
@@ -435,7 +453,7 @@
             accounts[key].currentWorld = data.currentWorld;
             accounts[key].owned = data.owned;
             writeAccounts(accounts);
-            renderLeaderboard();
+            refreshLeaderboard();
         }
 
         // Zapis może być uszkodzony albo ręcznie zmieniony - bierzemy tylko sensowne liczby
@@ -485,8 +503,179 @@
             OLD_SAVE_KEYS.forEach(key => lsRemove(key));
         }
 
+        // === CHMURA (Supabase REST) ===
+        // Rozmawiamy z GoTrue (/auth/v1) i PostgREST (/rest/v1) zwykłym fetchem.
+        // Bez SDK z CDN: jeden plik bez zewnętrznych zależności działa też offline.
+        const CLOUD_SESSION_KEY = 'multiwersum-cloud-session-v1';
+        const CLOUD_CACHE_KEY = 'multiwersum-cloud-cache-v1';
+        const EMAIL_DOMAIN = '@multiwersum-clicker.invalid';
+
+        let cloudSession = null;   // { access_token, refresh_token, expires_at, userId, nick }
+        let cloudSyncing = false;
+        let cloudDirty = false;
+        let cloudProblem = '';     // ostatni błąd sieci, pokazywany pod topką
+
+        // Supabase wymaga adresu e-mail, a gra loguje na nick - składamy więc
+        // adres z nicka. Dzięki temu unikalność e-maila wymusza unikalność nicka
+        // już na etapie rejestracji, bez osieroconych kont bez wiersza w topce.
+        function nickToEmail(nick) {
+            return nick.toLowerCase() + EMAIL_DOMAIN;
+        }
+
+        function cloudError(payload, status) {
+            if (payload && typeof payload === 'object') {
+                let text = payload.error_description || payload.msg || payload.message || payload.error;
+                if (text) return String(text);
+            }
+            return 'Błąd serwera (HTTP ' + status + ')';
+        }
+
+        async function sbRequest(path, options) {
+            let opts = options || {};
+            let headers = {
+                'apikey': SUPABASE_CONFIG.anonKey,
+                'Content-Type': 'application/json'
+            };
+            Object.keys(opts.headers || {}).forEach(key => { headers[key] = opts.headers[key]; });
+
+            if (opts.auth) {
+                await ensureFreshToken();
+                if (cloudSession) headers['Authorization'] = 'Bearer ' + cloudSession.access_token;
+            }
+
+            let response = await fetch(SUPABASE_CONFIG.url.replace(/\/+$/, '') + path, {
+                method: opts.method || 'GET',
+                headers: headers,
+                body: (opts.body === undefined) ? undefined : JSON.stringify(opts.body)
+            });
+
+            let raw = await response.text();
+            let payload = null;
+            if (raw) {
+                try { payload = JSON.parse(raw); } catch (e) { payload = { message: raw }; }
+            }
+
+            if (!response.ok) {
+                let error = new Error(cloudError(payload, response.status));
+                error.status = response.status;
+                error.payload = payload;
+                throw error;
+            }
+            return payload;
+        }
+
+        function storeCloudSession(auth, nick) {
+            // expires_in jest w sekundach; odejmujemy minutę zapasu na opóźnienia
+            let lifetime = readNumber(auth.expires_in, 3600, 1);
+            cloudSession = {
+                access_token: auth.access_token,
+                refresh_token: auth.refresh_token,
+                expires_at: Date.now() + (lifetime - 60) * 1000,
+                userId: (auth.user && auth.user.id) || (cloudSession && cloudSession.userId),
+                nick: nick || (cloudSession && cloudSession.nick)
+            };
+            lsSet(CLOUD_SESSION_KEY, JSON.stringify(cloudSession));
+        }
+
+        async function ensureFreshToken() {
+            if (!cloudSession || Date.now() < cloudSession.expires_at) return;
+            if (!cloudSession.refresh_token) return;
+
+            let auth = await sbRequest('/auth/v1/token?grant_type=refresh_token', {
+                method: 'POST',
+                body: { refresh_token: cloudSession.refresh_token }
+            });
+            storeCloudSession(auth, cloudSession.nick);
+        }
+
+        async function cloudRegister(nick, password) {
+            let auth = await sbRequest('/auth/v1/signup', {
+                method: 'POST',
+                body: { email: nickToEmail(nick), password: password, data: { nick: nick } }
+            });
+
+            if (!auth || !auth.access_token) {
+                // Konto powstało, ale Supabase czeka na potwierdzenie e-maila,
+                // który przy zmyślonym adresie nigdy nie dotrze.
+                throw new Error('Wyłącz "Confirm email" w Supabase → Authentication → Sign In / Providers.');
+            }
+            storeCloudSession(auth, nick);
+
+            await sbRequest('/rest/v1/profiles', {
+                method: 'POST', auth: true,
+                headers: { 'Prefer': 'return=minimal' },
+                body: { id: cloudSession.userId, nick: nick, money: 0, state: emptyState() }
+            });
+            return { money: 0, state: emptyState() };
+        }
+
+        async function cloudLogin(nick, password) {
+            let auth = await sbRequest('/auth/v1/token?grant_type=password', {
+                method: 'POST',
+                body: { email: nickToEmail(nick), password: password }
+            });
+            storeCloudSession(auth, nick);
+            return await cloudFetchProfile();
+        }
+
+        async function cloudFetchProfile() {
+            let rows = await sbRequest('/rest/v1/profiles?select=nick,money,state,updated_at&id=eq.'
+                + encodeURIComponent(cloudSession.userId), { auth: true });
+
+            if (!rows || !rows.length) {
+                // np. konto z czasów przed założeniem tabeli - dorabiamy wiersz
+                await sbRequest('/rest/v1/profiles', {
+                    method: 'POST', auth: true,
+                    headers: { 'Prefer': 'return=minimal' },
+                    body: { id: cloudSession.userId, nick: cloudSession.nick, money: 0, state: emptyState() }
+                });
+                return { money: 0, state: emptyState(), updated_at: null };
+            }
+
+            cloudSession.nick = rows[0].nick || cloudSession.nick;
+            lsSet(CLOUD_SESSION_KEY, JSON.stringify(cloudSession));
+            return rows[0];
+        }
+
+        async function cloudPushState() {
+            if (!cloudSession) return;
+            await sbRequest('/rest/v1/profiles?id=eq.' + encodeURIComponent(cloudSession.userId), {
+                method: 'PATCH', auth: true,
+                headers: { 'Prefer': 'return=minimal' },
+                body: { money: money, state: { owned: owned, currentWorld: currentWorld } }
+            });
+        }
+
+        async function cloudLeaderboard() {
+            let rows = await sbRequest('/rest/v1/profiles?select=nick,money&order=money.desc&limit=10');
+            return (rows || []).map(row => ({ nick: row.nick, money: readNumber(Number(row.money), 0) }));
+        }
+
+        function emptyState() {
+            return { owned: { dorota: {}, czemooo: {} }, currentWorld: 'dorota' };
+        }
+
+        // Lokalna kopia stanu konta chmurowego: gra ma działać także wtedy,
+        // gdy sieć padnie w trakcie, i nie gubić postępu między synchronizacjami.
+        function readCloudCache() {
+            let raw = lsGet(CLOUD_CACHE_KEY);
+            if (!raw) return {};
+            try {
+                let parsed = JSON.parse(raw);
+                return (parsed && typeof parsed === 'object') ? parsed : {};
+            } catch (e) { return {}; }
+        }
+
+        function writeCloudCache(nick, savedAt) {
+            let cache = readCloudCache();
+            cache[nick.toLowerCase()] = {
+                money: money, owned: owned, currentWorld: currentWorld, savedAt: savedAt
+            };
+            lsSet(CLOUD_CACHE_KEY, JSON.stringify(cache));
+        }
+
         // === LOGOWANIE ===
-        // To NIE jest zabezpieczenie kryptograficzne - cała baza kont leży w localStorage
+        // W trybie lokalnym to NIE jest zabezpieczenie kryptograficzne - baza kont leży w localStorage
         // tej przeglądarki. Hasło jest solone i haszowane tylko po to, żeby nie zostawało
         // zapisane otwartym tekstem.
         function weakHash(text) {
@@ -539,10 +728,71 @@
             return { nick: nick, pass: pass };
         }
 
+        function authBusy(busy, label) {
+            ['.auth-btn.primary', '.auth-btn.secondary', '.auth-btn.ghost'].forEach(sel => {
+                let btn = document.querySelector(sel);
+                if (btn) btn.disabled = busy;
+            });
+            if (busy) authError(label || 'Łączę z serwerem...');
+        }
+
         async function handleRegister() {
             let creds = readCredentials();
             if (!creds) return;
 
+            if (!cloudEnabled()) return registerLocal(creds);
+
+            authBusy(true, 'Tworzę konto...');
+            try {
+                let remote = await cloudRegister(creds.nick, creds.pass);
+                startGame({ type: 'cloud', nick: creds.nick }, remote);
+            } catch (e) {
+                authError(translateAuthError(e, 'rejestracji'));
+            } finally {
+                authBusy(false);
+            }
+        }
+
+        async function handleLogin() {
+            let creds = readCredentials();
+            if (!creds) return;
+
+            if (!cloudEnabled()) return loginLocal(creds);
+
+            authBusy(true, 'Loguję...');
+            try {
+                let remote = await cloudLogin(creds.nick, creds.pass);
+                startGame({ type: 'cloud', nick: cloudSession.nick || creds.nick }, remote);
+            } catch (e) {
+                authError(translateAuthError(e, 'logowania'));
+            } finally {
+                authBusy(false);
+            }
+        }
+
+        // Komunikaty GoTrue są po angielsku i dość techniczne
+        function translateAuthError(error, what) {
+            let text = String(error && error.message || error);
+
+            if (/already registered|already been registered|duplicate key/i.test(text)) {
+                return 'Ten nick jest już zajęty. Zaloguj się albo wybierz inny.';
+            }
+            if (/Invalid login credentials/i.test(text)) {
+                return 'Błędny nick lub hasło.';
+            }
+            if (/Confirm email|not confirmed/i.test(text)) {
+                return 'Wyłącz "Confirm email" w ustawieniach Supabase.';
+            }
+            if (/Failed to fetch|NetworkError|load failed/i.test(text)) {
+                return 'Brak połączenia z serwerem. Możesz zagrać jako gość.';
+            }
+            if (/Password should be/i.test(text)) {
+                return 'Hasło jest za krótkie dla ustawień serwera (min. 6 znaków).';
+            }
+            return 'Nie udało się ' + (what === 'rejestracji' ? 'utworzyć konta' : 'zalogować') + ': ' + text;
+        }
+
+        async function registerLocal(creds) {
             let accounts = readAccounts();
             let key = creds.nick.toLowerCase();
             if (accounts[key]) {
@@ -564,10 +814,7 @@
             startGame({ type: 'account', nick: creds.nick });
         }
 
-        async function handleLogin() {
-            let creds = readCredentials();
-            if (!creds) return;
-
+        async function loginLocal(creds) {
             let account = readAccounts()[creds.nick.toLowerCase()];
             if (!account) {
                 authError('Nie ma takiego konta. Użyj "Utwórz nowe konto".');
@@ -588,13 +835,25 @@
 
         function logout() {
             saveGame();
+            if (profile && profile.type === 'cloud') {
+                // dosyłamy stan przed wylogowaniem, ale nie blokujemy tym wyjścia
+                cloudPushState().catch(() => {}).then(finishLogout, finishLogout);
+                return;
+            }
+            finishLogout();
+        }
+
+        function finishLogout() {
             isResetting = true; // blokuje autozapis przy przeładowaniu
             lsRemove(SESSION_KEY);
+            lsRemove(CLOUD_SESSION_KEY);
             location.reload();
         }
 
-        function startGame(chosenProfile) {
+        // remote (opcjonalne) to wiersz z chmury: { money, state, updated_at }
+        function startGame(chosenProfile, remote) {
             profile = chosenProfile;
+
             if (profile.type === 'account') {
                 lsSet(SESSION_KEY, JSON.stringify({ nick: profile.nick }));
             }
@@ -604,17 +863,51 @@
             owned = { dorota: {}, czemooo: {} };
             currentWorld = 'dorota';
 
-            loadGame();
+            if (profile.type === 'cloud') {
+                adoptCloudState(remote);
+            } else {
+                loadGame();
+            }
+
             gameStarted = true;
 
             document.getElementById('auth-overlay').classList.add('hidden');
             document.getElementById('auth-pass').value = '';
+            authError('');
 
             applyWorldVisuals();
             renderUpgrades();
             updateDisplay();
             renderAccountBar();
-            renderLeaderboard();
+            refreshLeaderboard();
+        }
+
+        // Rozstrzyga konflikt między stanem z serwera a lokalną kopią tego konta.
+        // Wygrywa nowszy zapis - inaczej gra offline cofałaby postęp po powrocie sieci.
+        function adoptCloudState(remote) {
+            let cached = readCloudCache()[profile.nick.toLowerCase()] || null;
+            let remoteTime = (remote && remote.updated_at) ? Date.parse(remote.updated_at) : 0;
+            let cachedTime = (cached && cached.savedAt) ? cached.savedAt : 0;
+
+            let source = remote;
+            if (cached && cachedTime > remoteTime) {
+                source = { money: cached.money, state: { owned: cached.owned, currentWorld: cached.currentWorld } };
+                cloudDirty = true; // lokalna kopia jest nowsza, trzeba ją dosłać
+            }
+            if (!source) { recalcStats(); return; }
+
+            let state = source.state || {};
+            money = readNumber(Number(source.money), 0);
+            currentWorld = (state.currentWorld === 'czemooo') ? 'czemooo' : 'dorota';
+
+            Object.keys(upgradesData).forEach(world => {
+                let savedOwned = (state.owned && state.owned[world]) || {};
+                upgradesData[world].forEach(up => {
+                    owned[world][up.id] = Math.floor(readNumber(savedOwned[up.id], 0));
+                });
+            });
+
+            recalcStats();
         }
 
         function escapeHtml(text) {
@@ -632,23 +925,51 @@
                     + '<button onclick="logout()">Zaloguj się</button>';
             } else {
                 bar.innerHTML = 'Zalogowany: <strong>' + escapeHtml(profile.nick) + '</strong>'
+                    + (profile.type === 'cloud' ? ' (konto w chmurze)' : ' (konto lokalne)')
                     + '<button onclick="logout()">Wyloguj</button>';
             }
         }
 
-        // Nick jest wpisywany przez gracza, więc do HTML-a trafia wyłącznie po escapowaniu
-        function renderLeaderboard() {
+        let leaderboardRows = [];
+
+        function localLeaderboardRows() {
             let accounts = readAccounts();
-            let rows = Object.keys(accounts)
+            return Object.keys(accounts)
                 .map(key => ({ nick: accounts[key].nick || key, money: readNumber(accounts[key].money, 0) }))
                 .sort((a, b) => b.money - a.money)
                 .slice(0, 10);
+        }
 
-            let myNick = (profile && profile.type === 'account') ? profile.nick : null;
+        // W trybie chmury topka jest wspólna dla wszystkich graczy, więc pobieramy
+        // ją z serwera. Gdy sieć nie odpowiada, zostawiamy ostatnie dane i mówimy o tym.
+        async function refreshLeaderboard() {
+            if (!cloudEnabled()) {
+                leaderboardRows = localLeaderboardRows();
+                cloudProblem = '';
+                renderLeaderboard();
+                return;
+            }
+
+            try {
+                leaderboardRows = await cloudLeaderboard();
+                cloudProblem = '';
+            } catch (e) {
+                cloudProblem = 'Brak połączenia z serwerem — topka może być nieaktualna.';
+            }
+            renderLeaderboard();
+        }
+
+        // Nick jest wpisywany przez gracza, więc do HTML-a trafia wyłącznie po escapowaniu
+        function renderLeaderboard() {
+            let rows = leaderboardRows;
+            let myNick = (profile && profile.type !== 'guest') ? profile.nick : null;
             let html = '<div class="board-title">Topka pieniędzy</div>';
 
             if (!rows.length) {
-                html += '<div class="board-empty">Nikt jeszcze nie ma konta.<br>Utwórz konto, żeby trafić na listę.</div>';
+                html += '<div class="board-empty">'
+                     + (cloudProblem ? escapeHtml(cloudProblem)
+                        : 'Nikt jeszcze nie ma konta.<br>Utwórz konto, żeby trafić na listę.')
+                     + '</div>';
             } else {
                 html += '<table class="board-table"><tr><th></th><th>Gracz</th>'
                      + '<th style="text-align:right">Pieniądze</th></tr>';
@@ -659,7 +980,14 @@
                          + '<td class="cash">' + formatMoney(row.money) + '</td></tr>';
                 });
                 html += '</table>';
+                if (cloudProblem) {
+                    html += '<div class="board-empty">' + escapeHtml(cloudProblem) + '</div>';
+                }
             }
+
+            html += '<div class="board-mode">' + (cloudEnabled()
+                ? 'Topka wspólna dla wszystkich graczy'
+                : 'Topka lokalna — tylko konta z tej przeglądarki') + '</div>';
 
             ['board-main', 'board-auth'].forEach(id => {
                 let el = document.getElementById(id);
@@ -731,6 +1059,10 @@
 
         function handleImageError(imgElement) {
             let parent = imgElement.parentElement;
+            // onerror może odpalić się już po podmianie kontenera (applyWorldVisuals),
+            // czyli na elemencie bez rodzica - wtedy nie ma czego podmieniać
+            if (!parent) return;
+
             let fallback = document.createElement('div');
             fallback.className = 'image-fallback';
             fallback.innerText = (currentWorld === 'dorota') ? 'Dorota Wellman' : 'Czemoóó';
@@ -862,6 +1194,17 @@
                     accounts[key].owned = { dorota: {}, czemooo: {} };
                     writeAccounts(accounts);
                 }
+            } else if (profile && profile.type === 'cloud') {
+                let cache = readCloudCache();
+                delete cache[profile.nick.toLowerCase()];
+                lsSet(CLOUD_CACHE_KEY, JSON.stringify(cache));
+
+                // wyzerowanie w chmurze musi dojść przed przeładowaniem strony
+                money = 0;
+                owned = { dorota: {}, czemooo: {} };
+                currentWorld = 'dorota';
+                cloudPushState().catch(() => {}).then(() => location.reload(), () => location.reload());
+                return;
             } else {
                 lsRemove(GUEST_SAVE_KEY);
             }
@@ -869,7 +1212,26 @@
             location.reload();
         }
 
+        // Do chmury piszemy rzadziej niż lokalnie - to jest zapytanie sieciowe,
+        // a nie zapis do localStorage
+        async function syncCloud() {
+            if (!cloudEnabled() || !profile || profile.type !== 'cloud') return;
+            if (cloudSyncing || !cloudDirty) return;
+
+            cloudSyncing = true;
+            try {
+                await cloudPushState();
+                cloudDirty = false;
+                cloudProblem = '';
+            } catch (e) {
+                cloudProblem = 'Postęp nie doszedł do serwera — próbuję dalej.';
+            } finally {
+                cloudSyncing = false;
+            }
+        }
+
         let ticksSinceSave = 0;
+        let ticksSinceCloud = 0;
 
         setInterval(() => {
             if (!gameStarted) return; // ekran logowania - jeszcze nie gramy
@@ -884,6 +1246,12 @@
                 ticksSinceSave = 0;
                 saveGame();
             }
+
+            ticksSinceCloud++;
+            if (ticksSinceCloud >= 20) {
+                ticksSinceCloud = 0;
+                syncCloud().then(refreshLeaderboard);
+            }
         }, 1000);
 
         // Zamknięcie karty lub zminimalizowanie przeglądarki na telefonie
@@ -894,12 +1262,20 @@
 
         document.getElementById('app-version').innerText = 'v' + APP_VERSION;
 
+        document.getElementById('auth-note').innerText = cloudEnabled()
+            ? 'Konto jest zapisywane na serwerze, więc postęp przenosi się między urządzeniami, '
+              + 'a topka jest wspólna dla wszystkich graczy. Mimo to nie używaj tu hasła, '
+              + 'którego używasz gdzie indziej.'
+            : 'Konta i hasła są zapisywane tylko w tej przeglądarce, na tym urządzeniu. '
+              + 'Chroni to przed przypadkowym wejściem na Twój postęp, ale nie przed kimś, '
+              + 'kto zna narzędzia przeglądarki. Nie używaj tu hasła, którego używasz gdzie indziej.';
+
         dropOldSaves();
         recalcStats();
         applyWorldVisuals();
         renderUpgrades();
         updateDisplay();
-        renderLeaderboard();
+        refreshLeaderboard();
 
         // Enter w którymkolwiek polu loguje
         ['auth-nick', 'auth-pass'].forEach(id => {
@@ -909,28 +1285,70 @@
         });
 
         // Sesja pozwala wrócić do gry bez logowania po odświeżeniu strony
-        (function restoreSession() {
+        function restoreLocalSession() {
             let raw = lsGet(SESSION_KEY);
-            if (!raw) return;
+            if (!raw) return false;
 
             let session;
             try {
                 session = JSON.parse(raw);
             } catch (e) {
                 lsRemove(SESSION_KEY);
-                return;
+                return false;
             }
-            if (!session || typeof session.nick !== 'string') return;
+            if (!session || typeof session.nick !== 'string') return false;
 
             let account = readAccounts()[session.nick.toLowerCase()];
             if (!account) {
                 lsRemove(SESSION_KEY); // konto zniknęło, wracamy do logowania
-                return;
+                return false;
             }
             startGame({ type: 'account', nick: account.nick });
-        })();
+            return true;
+        }
 
-        document.getElementById('auth-nick').focus();
+        async function restoreCloudSession() {
+            let raw = lsGet(CLOUD_SESSION_KEY);
+            if (!raw) return false;
+
+            try {
+                cloudSession = JSON.parse(raw);
+            } catch (e) {
+                lsRemove(CLOUD_SESSION_KEY);
+                return false;
+            }
+            if (!cloudSession || !cloudSession.access_token || !cloudSession.userId) {
+                lsRemove(CLOUD_SESSION_KEY);
+                cloudSession = null;
+                return false;
+            }
+
+            try {
+                let remote = await cloudFetchProfile();
+                startGame({ type: 'cloud', nick: cloudSession.nick }, remote);
+                return true;
+            } catch (e) {
+                // token wygasł albo sieć nie działa - wracamy do ekranu logowania,
+                // ale lokalna kopia postępu zostaje nietknięta
+                if (e.status === 401 || e.status === 403) {
+                    lsRemove(CLOUD_SESSION_KEY);
+                    cloudSession = null;
+                    authError('Sesja wygasła, zaloguj się ponownie.');
+                } else {
+                    authError('Brak połączenia z serwerem. Możesz zagrać jako gość.');
+                }
+                return false;
+            }
+        }
+
+        (async function restoreSession() {
+            if (cloudEnabled()) {
+                if (await restoreCloudSession()) return;
+            } else if (restoreLocalSession()) {
+                return;
+            }
+            document.getElementById('auth-nick').focus();
+        })();
     </script>
 </body>
 </html>
