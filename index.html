@@ -146,9 +146,13 @@
         #reset-btn { margin-top: 30px; padding: 8px 16px; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; border-radius: 6px; cursor: pointer; font-size: 12px;}
         #reset-btn:hover { background: #bae6fd; }
 
+        .upgrade-count {
+            font-size: 11px; font-weight: bold; color: #64748b; margin-left: 4px;
+        }
+        body.world-czemooo .upgrade-count { color: #c4b5fd; }
+
         #app-version {
-            margin-top: 15px; font-size: 11px; letter-spacing: 1px;
-            text-transform: uppercase; color: #94a3b8;
+            margin-top: 15px; font-size: 11px; letter-spacing: 1px; color: #94a3b8;
         }
         body.world-czemooo #app-version { color: #a5b4fc; }
     </style>
@@ -189,51 +193,104 @@
     <script>
         // Wersja aplikacji - podbijana automatycznie przy każdym commicie
         // przez scripts/bump-version.sh (hook pre-commit). Nie edytuj ręcznie.
-        const APP_VERSION = '1.0.1';
+        const APP_VERSION = '1.0.2';
+
+        // === BALANS ===
+        // Cena rośnie z każdym zakupem, zysk doliczany jest liniowo.
+        // Dla ulepszeń klikania CLICK_COST_GROWTH MUSI być większe od CLICK_MULT -
+        // inaczej liczba klików na kolejny zakup maleje, szereg zbiega i gra kończy
+        // się w kilka minut (tak było przy 1.8 vs x2).
+        const CPS_COST_GROWTH = 1.11;
+        const CLICK_COST_GROWTH = 2.75;
+        const CLICK_MULT = 2;
+        const PORTAL_COST = 1e9;
 
         let money = 0;
         let moneyPerClick = 1;
         let moneyPerSecond = 0;
         let currentWorld = 'dorota';
 
+        // Liczba zakupionych sztuk każdego ulepszenia - jedyny prawdziwy stan gry.
+        // moneyPerClick, moneyPerSecond i ceny są z tego wyliczane (recalcStats/costOf).
+        let owned = { dorota: {}, czemooo: {} };
+
+        // Opis na liście generuje describe() z pola value, więc tekst nie może
+        // rozjechać się z balansem - w flavor jest tylko żart, nie liczby.
         let upgradesData = {
             dorota: [
-                { id: 'click', name: 'Moc Kliknięcia x2', desc: 'Podwaja zysk z jednego kliknięcia', baseCost: 25, value: 1, kind: 'click' },
-                { id: 'kawka', name: 'Poranna Kawa', desc: '+1$ na sekundę (musi być mocna!)', baseCost: 40, value: 1, kind: 'cps' },
-                { id: 'tvn', name: 'Kłótnia w Studio', desc: '+5$ na sekundę za ostrą wymianę zdań', baseCost: 150, value: 5, kind: 'cps' },
-                { id: 'show', name: 'Własny Talk-Show', desc: '+25$ na sekundę, bo kto zatrzyma Dorotę?', baseCost: 600, value: 25, kind: 'cps' },
-                { id: 'wywiad', name: 'Gorący Wywiad', desc: '+75$ na sekundę z trudnymi pytaniami', baseCost: 2200, value: 75, kind: 'cps' },
-                { id: 'płacz', name: 'Instytut Dramatu i Łez', desc: '+250$ na sekundę czystego dramatyzmu', baseCost: 8500, value: 250, kind: 'cps' },
-                { id: 'menedzer', name: 'Menedżer Kryzysowy', desc: '+900$ na sekundę ratowania wizerunku', baseCost: 35000, value: 900, kind: 'cps' },
-                { id: 'imperium', name: 'Globalna Sieć Płaczu', desc: '+3000$ na sekundę. Pełna dominacja!', baseCost: 120000, value: 3000, kind: 'cps' }
+                { id: 'click', name: 'Moc Kliknięcia x2', flavor: 'Palec sam się nie napracuje', baseCost: 45, value: 1, kind: 'click' },
+                { id: 'kawka', name: 'Poranna Kawa', flavor: 'Musi być mocna!', baseCost: 25, value: 1, kind: 'cps' },
+                { id: 'tvn', name: 'Kłótnia w Studio', flavor: 'Za ostrą wymianę zdań', baseCost: 320, value: 12, kind: 'cps' },
+                { id: 'show', name: 'Własny Talk-Show', flavor: 'Bo kto zatrzyma Dorotę?', baseCost: 2600, value: 95, kind: 'cps' },
+                { id: 'wywiad', name: 'Gorący Wywiad', flavor: 'Trudne pytania, trudniejsze odpowiedzi', baseCost: 24000, value: 900, kind: 'cps' },
+                { id: 'płacz', name: 'Instytut Dramatu i Łez', flavor: 'Czysty dramatyzm', baseCost: 220000, value: 8500, kind: 'cps' },
+                { id: 'menedzer', name: 'Menedżer Kryzysowy', flavor: 'Ratowanie wizerunku na etacie', baseCost: 2000000, value: 78000, kind: 'cps' },
+                { id: 'imperium', name: 'Globalna Sieć Płaczu', flavor: 'Pełna dominacja!', baseCost: 18000000, value: 700000, kind: 'cps' }
             ],
             czemooo: [
-                { id: 'c_click', name: 'Błyskawica Przemka x2', desc: 'Podwaja moc kliknięcia Przemka', baseCost: 5000000, value: 1, kind: 'click' },
-                { id: 'c_neony', name: 'Neonowa Poświata', desc: '+100 000$ na sekundę', baseCost: 10000000, value: 100000, kind: 'cps' },
-                { id: 'c_grzmot', name: 'Kosmiczny Grzmot', desc: '+500 000$ na sekundę', baseCost: 50000000, value: 500000, kind: 'cps' },
-                { id: 'c_awaria', name: 'Absolutna Awaria', desc: '+2 500 000$ na sekundę', baseCost: 250000000, value: 2500000, kind: 'cps' },
-                { id: 'c_bos', name: 'Władca Czemoóó', desc: '+10 000 000$ na sekundę', baseCost: 1000000000, value: 10000000, kind: 'cps' }
+                { id: 'c_click', name: 'Błyskawica Przemka x2', flavor: 'Grom z jasnego nieba', baseCost: 500000000, value: 1, kind: 'click' },
+                { id: 'c_neony', name: 'Neonowa Poświata', flavor: 'Fiolet wchodzi wszędzie', baseCost: 400000000, value: 5000000, kind: 'cps' },
+                { id: 'c_grzmot', name: 'Kosmiczny Grzmot', flavor: 'Słychać w całym multiwersum', baseCost: 8000000000, value: 60000000, kind: 'cps' },
+                { id: 'c_awaria', name: 'Absolutna Awaria', flavor: 'Nic nie działa, wszystko zarabia', baseCost: 200000000000, value: 800000000, kind: 'cps' },
+                { id: 'c_bos', name: 'Władca Czemoóó', flavor: 'Czemoóó?!', baseCost: 6000000000000, value: 14000000000, kind: 'cps' }
             ]
         };
 
-        let costs = {
-            dorota: { click: 25, kawka: 40, tvn: 150, show: 600, wywiad: 2200, płacz: 8500, menedzer: 35000, imperium: 120000 },
-            czemooo: { c_click: 5000000, c_neony: 10000000, c_grzmot: 50000000, c_awaria: 250000000, c_bos: 1000000000 }
-        };
+        function describe(up) {
+            if (up.kind === 'click') {
+                return 'Mnoży zysk z kliknięcia x' + CLICK_MULT + '. ' + up.flavor;
+            }
+            return '+' + formatMoney(up.value) + ' na sekundę. ' + up.flavor;
+        }
 
-        const SAVE_KEY = 'multiwersum-clicker-save-v1';
+        function findUpgrade(world, id) {
+            return upgradesData[world].find(up => up.id === id);
+        }
+
+        function costOf(world, id) {
+            let up = findUpgrade(world, id);
+            let count = owned[world][id] || 0;
+            let growth = (up.kind === 'click') ? CLICK_COST_GROWTH : CPS_COST_GROWTH;
+            return Math.ceil(up.baseCost * Math.pow(growth, count));
+        }
+
+        // Przelicza statystyki z liczników zakupów. Liczymy OBA światy, bo dochód
+        // z ulepszeń Doroty zostaje po przejściu portalem (kiedyś był zerowany).
+        function recalcStats() {
+            let click = 1;
+            let cps = 0;
+
+            Object.keys(upgradesData).forEach(world => {
+                upgradesData[world].forEach(up => {
+                    let count = owned[world][up.id] || 0;
+                    if (count <= 0) return;
+
+                    if (up.kind === 'click') {
+                        click *= Math.pow(CLICK_MULT, count);
+                    } else {
+                        cps += up.value * count;
+                    }
+                });
+            });
+
+            moneyPerClick = click;
+            moneyPerSecond = cps;
+        }
+
+        // v2: zapisujemy liczniki zakupów zamiast wyliczonych sum i cen.
+        // Zapisy v1 są nie do przeniesienia - powstały przy zupełnie innych cenach.
+        const SAVE_KEY = 'multiwersum-clicker-save-v2';
+        const OLD_SAVE_KEYS = ['multiwersum-clicker-save-v1'];
         let isResetting = false;
 
         function saveGame() {
             if (isResetting) return;
             try {
                 localStorage.setItem(SAVE_KEY, JSON.stringify({
-                    version: 1,
+                    version: 2,
                     money: money,
-                    moneyPerClick: moneyPerClick,
-                    moneyPerSecond: moneyPerSecond,
                     currentWorld: currentWorld,
-                    costs: costs
+                    owned: owned
                 }));
             } catch (e) {
                 console.log("Nie udało się zapisać gry", e);
@@ -265,24 +322,49 @@
             if (!save || typeof save !== 'object') return;
 
             money = readNumber(save.money, 0);
-            moneyPerClick = readNumber(save.moneyPerClick, 1, 1);
-            moneyPerSecond = readNumber(save.moneyPerSecond, 0);
             currentWorld = (save.currentWorld === 'czemooo') ? 'czemooo' : 'dorota';
 
-            // Wczytujemy ceny tylko znanych ulepszeń, resztę zostawiamy domyślną
-            Object.keys(costs).forEach(world => {
-                let savedCosts = (save.costs && save.costs[world]) || {};
-                Object.keys(costs[world]).forEach(id => {
-                    costs[world][id] = readNumber(savedCosts[id], costs[world][id], 1);
+            // Wczytujemy liczniki tylko znanych ulepszeń - dopisanie czegoś
+            // do zapisu nic nie wstrzyknie, a liczba musi być całkowita i nieujemna
+            Object.keys(upgradesData).forEach(world => {
+                let savedOwned = (save.owned && save.owned[world]) || {};
+                upgradesData[world].forEach(up => {
+                    let count = readNumber(savedOwned[up.id], 0);
+                    owned[world][up.id] = Math.floor(count);
                 });
             });
+
+            recalcStats();
         }
 
+        function dropOldSaves() {
+            try {
+                OLD_SAVE_KEYS.forEach(key => localStorage.removeItem(key));
+            } catch (e) {
+                // brak dostępu do localStorage - nie ma czego czyścić
+            }
+        }
+
+        const MONEY_SUFFIXES = [
+            { limit: 1e18, suffix: 'Q' },
+            { limit: 1e15, suffix: 'q' },
+            { limit: 1e12, suffix: 't' },
+            { limit: 1e9,  suffix: 'b' },
+            { limit: 1e6,  suffix: 'm' },
+            { limit: 1e3,  suffix: 'k' }
+        ];
+
         function formatMoney(amount) {
-            if (amount >= 1e9) return (amount / 1e9).toFixed(2) + 'b';
-            if (amount >= 1e6) return (amount / 1e6).toFixed(2) + 'm';
-            if (amount >= 1e3) return (amount / 1e3).toFixed(1) + 'k';
-            return "$" + amount;
+            if (!isFinite(amount)) return '$∞';
+            if (amount >= 1e21) return '$' + amount.toExponential(2);
+
+            for (let i = 0; i < MONEY_SUFFIXES.length; i++) {
+                let step = MONEY_SUFFIXES[i];
+                if (amount >= step.limit) {
+                    return '$' + (amount / step.limit).toFixed(2) + step.suffix;
+                }
+            }
+            return '$' + Math.floor(amount);
         }
 
         function handleClick(event) {
@@ -334,25 +416,16 @@
             parent.replaceChild(fallback, imgElement);
         }
 
-        function buyUpgrade(id, baseValue, kind) {
-            let worldCosts = costs[currentWorld];
-            let cost = worldCosts[id];
+        function buyUpgrade(id) {
+            let cost = costOf(currentWorld, id);
+            if (money < cost) return;
 
-            if (money >= cost) {
-                money -= cost;
+            money -= cost;
+            owned[currentWorld][id] = (owned[currentWorld][id] || 0) + 1;
 
-                if (kind === 'click') {
-                    moneyPerClick *= 2;
-                    worldCosts[id] = Math.floor(cost * 1.8);
-                } else {
-                    moneyPerSecond += baseValue;
-                    worldCosts[id] = Math.floor(cost * 1.3);
-                }
-
-                document.getElementById('price-' + id).innerText = formatMoney(worldCosts[id]);
-                updateDisplay();
-                saveGame();
-            }
+            recalcStats();
+            updateDisplay();
+            saveGame();
         }
 
         // Wywoływane przy przejściu portalem oraz po wczytaniu zapisu,
@@ -375,12 +448,14 @@
         }
 
         function switchToCzemooo() {
-            if (money < 1000000000) return;
+            if (money < PORTAL_COST) return;
 
             currentWorld = 'czemooo';
             applyWorldVisuals();
 
-            moneyPerSecond = 0;
+            // Dochód z ulepszeń Doroty zostaje - kiedyś było tu moneyPerSecond = 0,
+            // co po przejściu portalem zabierało cały zarobiony dochód pasywny
+            recalcStats();
             renderUpgrades();
             updateDisplay();
             saveGame();
@@ -392,18 +467,17 @@
 
             let list = upgradesData[currentWorld];
             list.forEach(up => {
-                let currentCost = costs[currentWorld][up.id];
                 let item = document.createElement('div');
                 item.className = 'upgrade-item';
                 item.id = 'up-' + up.id;
-                item.onclick = () => buyUpgrade(up.id, up.value, up.kind);
+                item.onclick = () => buyUpgrade(up.id);
 
                 item.innerHTML = `
                     <div class="upgrade-info">
-                        <div class="title">${up.name}</div>
-                        <div class="desc">${up.desc}</div>
+                        <div class="title">${up.name} <span class="upgrade-count" id="count-${up.id}"></span></div>
+                        <div class="desc">${describe(up)}</div>
                     </div>
-                    <div class="upgrade-price" id="price-${up.id}">${formatMoney(currentCost)}</div>
+                    <div class="upgrade-price" id="price-${up.id}"></div>
                 `;
                 container.appendChild(item);
             });
@@ -411,34 +485,41 @@
 
         function updateDisplay() {
             document.getElementById('money-display').innerText = formatMoney(money);
-            document.getElementById('rate-display').innerText = "Zarabiasz: " + formatMoney(moneyPerSecond) + "/s";
+            document.getElementById('rate-display').innerText =
+                "Zarabiasz: " + formatMoney(moneyPerSecond) + "/s  •  Klik: " + formatMoney(moneyPerClick);
 
             if (currentWorld === 'dorota') {
                 let portal = document.getElementById('czemooo-portal');
                 let pTitle = document.getElementById('portal-title');
                 let pDesc = document.getElementById('portal-desc');
 
-                if (money >= 1000000000) {
+                if (money >= PORTAL_COST) {
                     portal.classList.add('unlocked');
                     pTitle.innerText = "✨ PORTAL OTWARTY! ✨";
                     pDesc.innerText = "Kliknij, aby wejść do Świata Czemoóó!";
                 } else {
                     portal.classList.remove('unlocked');
                     pTitle.innerText = "🔒 PORTAL ZAMKNIĘTY";
-                    pDesc.innerText = "Wymagane do przejścia: 1.00b";
+                    pDesc.innerText = "Wymagane do przejścia: " + formatMoney(PORTAL_COST);
                 }
             }
 
-            let currentList = upgradesData[currentWorld];
-            currentList.forEach(up => {
+            // Ceny rosną z każdym zakupem, więc odświeżamy je razem z resztą,
+            // a nie tylko w momencie kupna
+            upgradesData[currentWorld].forEach(up => {
                 let el = document.getElementById('up-' + up.id);
-                if (el) {
-                    let cost = costs[currentWorld][up.id];
-                    if (money >= cost) {
-                        el.classList.add('affordable');
-                    } else {
-                        el.classList.remove('affordable');
-                    }
+                if (!el) return;
+
+                let cost = costOf(currentWorld, up.id);
+                let count = owned[currentWorld][up.id] || 0;
+
+                document.getElementById('price-' + up.id).innerText = formatMoney(cost);
+                document.getElementById('count-' + up.id).innerText = (count > 0) ? '×' + count : '';
+
+                if (money >= cost) {
+                    el.classList.add('affordable');
+                } else {
+                    el.classList.remove('affordable');
                 }
             });
         }
@@ -479,6 +560,8 @@
         document.getElementById('app-version').innerText = 'v' + APP_VERSION;
 
         loadGame();
+        dropOldSaves();
+        recalcStats();
         applyWorldVisuals();
         renderUpgrades();
         updateDisplay();
