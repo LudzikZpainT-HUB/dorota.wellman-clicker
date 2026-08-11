@@ -151,6 +151,77 @@
         }
         body.world-czemooo .upgrade-count { color: #c4b5fd; }
 
+        /* EKRAN LOGOWANIA */
+        #auth-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(15, 23, 42, 0.9); z-index: 50;
+            display: flex; align-items: flex-start; justify-content: center;
+            padding: 20px; overflow-y: auto;
+        }
+        #auth-overlay.hidden { display: none; }
+
+        .auth-box {
+            background: white; border-radius: 14px; padding: 24px; margin: auto;
+            width: 100%; max-width: 380px; box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+        }
+        .auth-box h2 { margin: 0 0 4px 0; font-size: 20px; color: #0f172a; }
+        .auth-box .auth-sub { font-size: 12px; color: #64748b; margin-bottom: 18px; }
+
+        .auth-input {
+            width: 100%; padding: 10px 12px; margin-bottom: 10px; box-sizing: border-box;
+            border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-family: inherit;
+        }
+        .auth-input:focus { outline: 2px solid #16a34a; border-color: #16a34a; }
+
+        .auth-btn {
+            width: 100%; padding: 10px; margin-bottom: 8px; border: none; border-radius: 8px;
+            cursor: pointer; font-size: 14px; font-weight: bold; font-family: inherit;
+        }
+        .auth-btn.primary { background: #16a34a; color: white; }
+        .auth-btn.primary:hover { background: #15803d; }
+        .auth-btn.secondary { background: #e2e8f0; color: #0f172a; }
+        .auth-btn.secondary:hover { background: #cbd5e1; }
+        .auth-btn.ghost { background: transparent; color: #475569; text-decoration: underline; font-weight: normal; }
+
+        #auth-error { color: #dc2626; font-size: 12px; min-height: 17px; margin-bottom: 6px; font-weight: bold; }
+        .auth-note { font-size: 11px; color: #64748b; line-height: 1.5; margin-top: 14px; }
+        .auth-sep { border-top: 1px solid #e2e8f0; margin: 14px 0; }
+
+        /* PASEK KONTA */
+        #account-bar { font-size: 12px; color: #475569; margin-bottom: 14px; }
+        body.world-czemooo #account-bar { color: #c7d2fe; }
+        #account-bar strong { color: #0f172a; }
+        body.world-czemooo #account-bar strong { color: white; }
+        #account-bar button {
+            margin-left: 8px; padding: 3px 9px; font-size: 11px; font-family: inherit;
+            border: 1px solid #cbd5e1; background: white; color: #0f172a;
+            border-radius: 5px; cursor: pointer;
+        }
+        #account-bar button:hover { background: #f1f5f9; }
+
+        /* TOPKA PIENIĘDZY */
+        .board { max-width: 420px; margin: 28px auto 0; text-align: left; }
+        .board-title {
+            font-size: 14px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;
+            color: #475569; margin-bottom: 8px; text-align: center;
+        }
+        body.world-czemooo .board-title { color: #c7d2fe; }
+        .board-table { width: 100%; border-collapse: collapse; font-size: 13px; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        body.world-czemooo .board-table { background: #312e81; color: white; }
+        .board-table th {
+            background: #f1f5f9; color: #475569; font-size: 11px; text-transform: uppercase;
+            letter-spacing: 1px; padding: 8px 10px; text-align: left;
+        }
+        body.world-czemooo .board-table th { background: #4338ca; color: #e0e7ff; }
+        .board-table td { padding: 8px 10px; border-top: 1px solid #e2e8f0; }
+        body.world-czemooo .board-table td { border-top-color: #4338ca; }
+        .board-table td.pos { width: 34px; color: #94a3b8; font-weight: bold; }
+        .board-table td.cash { text-align: right; font-weight: bold; color: #16a34a; white-space: nowrap; }
+        body.world-czemooo .board-table td.cash { color: #22d3ee; }
+        .board-table tr.me { background: #dcfce7; }
+        body.world-czemooo .board-table tr.me { background: #5b21b6; }
+        .board-empty { font-size: 12px; color: #94a3b8; text-align: center; padding: 14px; }
+
         #app-version {
             margin-top: 15px; font-size: 11px; letter-spacing: 1px; color: #94a3b8;
         }
@@ -159,8 +230,36 @@
 </head>
 <body class="world-dorota" id="game-body">
 
+    <div id="auth-overlay">
+        <div class="auth-box">
+            <h2>Multiwersum Clicker</h2>
+            <div class="auth-sub">Zaloguj się, żeby Twój postęp liczył się do topki pieniędzy.</div>
+
+            <input type="text" id="auth-nick" class="auth-input" placeholder="Nick" maxlength="16" autocomplete="username">
+            <input type="password" id="auth-pass" class="auth-input" placeholder="Hasło" maxlength="64" autocomplete="current-password">
+
+            <div id="auth-error"></div>
+
+            <button class="auth-btn primary" onclick="handleLogin()">Zaloguj się</button>
+            <button class="auth-btn secondary" onclick="handleRegister()">Utwórz nowe konto</button>
+
+            <div class="auth-sep"></div>
+
+            <button class="auth-btn ghost" onclick="playAsGuest()">Graj jako gość (bez topki)</button>
+
+            <div id="board-auth"></div>
+
+            <div class="auth-note">
+                Konta i hasła są zapisywane tylko w tej przeglądarce, na tym urządzeniu.
+                Chroni to przed przypadkowym wejściem na Twój postęp, ale nie przed kimś,
+                kto zna narzędzia przeglądarki. Nie używaj tu hasła, którego używasz gdzie indziej.
+            </div>
+        </div>
+    </div>
+
     <h1>Multiwersum Clicker</h1>
     <div class="world-label" id="world-label">Świat 1: Dorota Wellman</div>
+    <div id="account-bar"></div>
 
     <div class="main-container">
         <div class="clicker-box">
@@ -183,6 +282,8 @@
         </div>
     </div>
 
+    <div id="board-main"></div>
+
     <button id="reset-btn" onclick="fullReset()">Zresetuj grę</button>
 
     <div id="app-version"></div>
@@ -193,7 +294,7 @@
     <script>
         // Wersja aplikacji - podbijana automatycznie przy każdym commicie
         // przez scripts/bump-version.sh (hook pre-commit). Nie edytuj ręcznie.
-        const APP_VERSION = '1.0.2';
+        const APP_VERSION = '1.0.3';
 
         // === BALANS ===
         // Cena rośnie z każdym zakupem, zysk doliczany jest liniowo.
@@ -277,24 +378,64 @@
             moneyPerSecond = cps;
         }
 
-        // v2: zapisujemy liczniki zakupów zamiast wyliczonych sum i cen.
-        // Zapisy v1 są nie do przeniesienia - powstały przy zupełnie innych cenach.
-        const SAVE_KEY = 'multiwersum-clicker-save-v2';
+        // === PROFILE I ZAPIS ===
+        // Postęp konta trzymamy w rekordzie konta, a gość ma osobny klucz - ten sam,
+        // który był używany przed logowaniem, więc dotychczasowy zapis nie przepada.
+        const ACCOUNTS_KEY = 'multiwersum-accounts-v1';
+        const SESSION_KEY = 'multiwersum-session-v1';
+        const GUEST_SAVE_KEY = 'multiwersum-clicker-save-v2';
         const OLD_SAVE_KEYS = ['multiwersum-clicker-save-v1'];
+
+        let profile = null;        // { type: 'account', nick } albo { type: 'guest' }
+        let gameStarted = false;   // dopóki false, gra nie liczy dochodu i nie zapisuje
         let isResetting = false;
 
-        function saveGame() {
-            if (isResetting) return;
+        // localStorage bywa niedostępny (tryb prywatny, zablokowane ciasteczka)
+        function lsGet(key) {
+            try { return localStorage.getItem(key); } catch (e) { return null; }
+        }
+        function lsSet(key, value) {
+            try { localStorage.setItem(key, value); return true; } catch (e) { return false; }
+        }
+        function lsRemove(key) {
+            try { localStorage.removeItem(key); } catch (e) { /* nie ma czego usuwać */ }
+        }
+
+        function readAccounts() {
+            let raw = lsGet(ACCOUNTS_KEY);
+            if (!raw) return {};
             try {
-                localStorage.setItem(SAVE_KEY, JSON.stringify({
-                    version: 2,
-                    money: money,
-                    currentWorld: currentWorld,
-                    owned: owned
-                }));
+                let parsed = JSON.parse(raw);
+                return (parsed && typeof parsed === 'object') ? parsed : {};
             } catch (e) {
-                console.log("Nie udało się zapisać gry", e);
+                console.log("Baza kont jest uszkodzona - startuję z pustą");
+                return {};
             }
+        }
+
+        function writeAccounts(accounts) {
+            lsSet(ACCOUNTS_KEY, JSON.stringify(accounts));
+        }
+
+        function saveGame() {
+            if (!gameStarted || isResetting || !profile) return;
+
+            let data = { version: 2, money: money, currentWorld: currentWorld, owned: owned };
+
+            if (profile.type === 'guest') {
+                lsSet(GUEST_SAVE_KEY, JSON.stringify(data));
+                return;
+            }
+
+            let accounts = readAccounts();
+            let key = profile.nick.toLowerCase();
+            if (!accounts[key]) return; // konto zniknęło, np. wyczyszczone w innej karcie
+
+            accounts[key].money = data.money;
+            accounts[key].currentWorld = data.currentWorld;
+            accounts[key].owned = data.owned;
+            writeAccounts(accounts);
+            renderLeaderboard();
         }
 
         // Zapis może być uszkodzony albo ręcznie zmieniony - bierzemy tylko sensowne liczby
@@ -304,22 +445,25 @@
         }
 
         function loadGame() {
-            let raw = null;
-            try {
-                raw = localStorage.getItem(SAVE_KEY);
-            } catch (e) {
-                return; // np. tryb prywatny bez dostępu do localStorage
-            }
-            if (!raw) return;
+            let save = null;
 
-            let save;
-            try {
-                save = JSON.parse(raw);
-            } catch (e) {
-                console.log("Zapis jest uszkodzony - startuję nową grę");
+            if (profile.type === 'guest') {
+                let raw = lsGet(GUEST_SAVE_KEY);
+                if (raw) {
+                    try {
+                        save = JSON.parse(raw);
+                    } catch (e) {
+                        console.log("Zapis gościa jest uszkodzony - startuję nową grę");
+                    }
+                }
+            } else {
+                save = readAccounts()[profile.nick.toLowerCase()] || null;
+            }
+
+            if (!save || typeof save !== 'object') {
+                recalcStats();
                 return;
             }
-            if (!save || typeof save !== 'object') return;
 
             money = readNumber(save.money, 0);
             currentWorld = (save.currentWorld === 'czemooo') ? 'czemooo' : 'dorota';
@@ -338,11 +482,189 @@
         }
 
         function dropOldSaves() {
-            try {
-                OLD_SAVE_KEYS.forEach(key => localStorage.removeItem(key));
-            } catch (e) {
-                // brak dostępu do localStorage - nie ma czego czyścić
+            OLD_SAVE_KEYS.forEach(key => lsRemove(key));
+        }
+
+        // === LOGOWANIE ===
+        // To NIE jest zabezpieczenie kryptograficzne - cała baza kont leży w localStorage
+        // tej przeglądarki. Hasło jest solone i haszowane tylko po to, żeby nie zostawało
+        // zapisane otwartym tekstem.
+        function weakHash(text) {
+            let h = 0x811c9dc5;
+            for (let i = 0; i < text.length; i++) {
+                h ^= text.charCodeAt(i);
+                h = Math.imul(h, 0x01000193) >>> 0;
             }
+            return 'w' + h.toString(16) + '-' + text.length;
+        }
+
+        // crypto.subtle działa tylko w bezpiecznym kontekście (https/localhost),
+        // więc przy otwarciu pliku przez file:// schodzimy na wariant zapasowy.
+        // Algorytm zapisujemy przy koncie, żeby weryfikacja zawsze użyła tego samego.
+        async function hashPassword(nick, password, algo) {
+            let salted = 'multiwersum:' + nick.toLowerCase() + ':' + password;
+            let cryptoOk = (typeof crypto !== 'undefined') && crypto.subtle && (typeof TextEncoder !== 'undefined');
+
+            if (cryptoOk && algo !== 'weak') {
+                try {
+                    let digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(salted));
+                    let hex = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    return { algo: 'sha256', hash: hex };
+                } catch (e) {
+                    // brak bezpiecznego kontekstu - lecimy dalej wariantem zapasowym
+                }
+            }
+            return { algo: 'weak', hash: weakHash(salted) };
+        }
+
+        const NICK_PATTERN = /^[a-zA-Z0-9ąćęłńóśźżĄĆĘŁŃÓŚŹŻ_-]{2,16}$/;
+
+        function authError(message) {
+            document.getElementById('auth-error').innerText = message || '';
+        }
+
+        function readCredentials() {
+            let nick = document.getElementById('auth-nick').value.trim();
+            let pass = document.getElementById('auth-pass').value;
+
+            if (!NICK_PATTERN.test(nick)) {
+                authError('Nick: 2-16 znaków, bez spacji i znaków specjalnych.');
+                return null;
+            }
+            if (pass.length < 4) {
+                authError('Hasło musi mieć co najmniej 4 znaki.');
+                return null;
+            }
+            authError('');
+            return { nick: nick, pass: pass };
+        }
+
+        async function handleRegister() {
+            let creds = readCredentials();
+            if (!creds) return;
+
+            let accounts = readAccounts();
+            let key = creds.nick.toLowerCase();
+            if (accounts[key]) {
+                authError('Taki nick już istnieje. Zaloguj się albo wybierz inny.');
+                return;
+            }
+
+            let secret = await hashPassword(creds.nick, creds.pass);
+            accounts[key] = {
+                nick: creds.nick, algo: secret.algo, hash: secret.hash,
+                money: 0, currentWorld: 'dorota', owned: { dorota: {}, czemooo: {} }
+            };
+            writeAccounts(accounts);
+
+            if (!lsGet(ACCOUNTS_KEY)) {
+                authError('Przeglądarka nie pozwala zapisać konta (tryb prywatny?). Zagraj jako gość.');
+                return;
+            }
+            startGame({ type: 'account', nick: creds.nick });
+        }
+
+        async function handleLogin() {
+            let creds = readCredentials();
+            if (!creds) return;
+
+            let account = readAccounts()[creds.nick.toLowerCase()];
+            if (!account) {
+                authError('Nie ma takiego konta. Użyj "Utwórz nowe konto".');
+                return;
+            }
+
+            let secret = await hashPassword(creds.nick, creds.pass, account.algo);
+            if (secret.hash !== account.hash) {
+                authError('Błędne hasło.');
+                return;
+            }
+            startGame({ type: 'account', nick: account.nick });
+        }
+
+        function playAsGuest() {
+            startGame({ type: 'guest' });
+        }
+
+        function logout() {
+            saveGame();
+            isResetting = true; // blokuje autozapis przy przeładowaniu
+            lsRemove(SESSION_KEY);
+            location.reload();
+        }
+
+        function startGame(chosenProfile) {
+            profile = chosenProfile;
+            if (profile.type === 'account') {
+                lsSet(SESSION_KEY, JSON.stringify({ nick: profile.nick }));
+            }
+
+            // czysty stan, żeby nic nie zostało po poprzednim profilu
+            money = 0;
+            owned = { dorota: {}, czemooo: {} };
+            currentWorld = 'dorota';
+
+            loadGame();
+            gameStarted = true;
+
+            document.getElementById('auth-overlay').classList.add('hidden');
+            document.getElementById('auth-pass').value = '';
+
+            applyWorldVisuals();
+            renderUpgrades();
+            updateDisplay();
+            renderAccountBar();
+            renderLeaderboard();
+        }
+
+        function escapeHtml(text) {
+            return String(text).replace(/[&<>"']/g, ch => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[ch]);
+        }
+
+        function renderAccountBar() {
+            let bar = document.getElementById('account-bar');
+            if (!profile) { bar.innerHTML = ''; return; }
+
+            if (profile.type === 'guest') {
+                bar.innerHTML = 'Grasz jako <strong>gość</strong> — wynik nie trafia do topki.'
+                    + '<button onclick="logout()">Zaloguj się</button>';
+            } else {
+                bar.innerHTML = 'Zalogowany: <strong>' + escapeHtml(profile.nick) + '</strong>'
+                    + '<button onclick="logout()">Wyloguj</button>';
+            }
+        }
+
+        // Nick jest wpisywany przez gracza, więc do HTML-a trafia wyłącznie po escapowaniu
+        function renderLeaderboard() {
+            let accounts = readAccounts();
+            let rows = Object.keys(accounts)
+                .map(key => ({ nick: accounts[key].nick || key, money: readNumber(accounts[key].money, 0) }))
+                .sort((a, b) => b.money - a.money)
+                .slice(0, 10);
+
+            let myNick = (profile && profile.type === 'account') ? profile.nick : null;
+            let html = '<div class="board-title">Topka pieniędzy</div>';
+
+            if (!rows.length) {
+                html += '<div class="board-empty">Nikt jeszcze nie ma konta.<br>Utwórz konto, żeby trafić na listę.</div>';
+            } else {
+                html += '<table class="board-table"><tr><th></th><th>Gracz</th>'
+                     + '<th style="text-align:right">Pieniądze</th></tr>';
+                rows.forEach((row, i) => {
+                    html += '<tr' + (row.nick === myNick ? ' class="me"' : '') + '>'
+                         + '<td class="pos">' + (i + 1) + '</td>'
+                         + '<td>' + escapeHtml(row.nick) + '</td>'
+                         + '<td class="cash">' + formatMoney(row.money) + '</td></tr>';
+                });
+                html += '</table>';
+            }
+
+            ['board-main', 'board-auth'].forEach(id => {
+                let el = document.getElementById(id);
+                if (el) { el.className = 'board'; el.innerHTML = html; }
+            });
         }
 
         const MONEY_SUFFIXES = [
@@ -524,21 +846,34 @@
             });
         }
 
+        // Resetuje tylko postęp bieżącego profilu - konto zostaje, hasło zostaje,
+        // pozostałe konta i topka są nietknięte
         function fullReset() {
-            if(confirm("Na pewno zresetować całą grę?")) {
-                isResetting = true; // blokuje autozapis, który odpala się przy przeładowaniu strony
-                try {
-                    localStorage.removeItem(SAVE_KEY);
-                } catch (e) {
-                    console.log("Nie udało się usunąć zapisu", e);
+            if (!confirm("Na pewno zresetować postęp tego profilu?")) return;
+
+            isResetting = true; // blokuje autozapis, który odpala się przy przeładowaniu strony
+
+            if (profile && profile.type === 'account') {
+                let accounts = readAccounts();
+                let key = profile.nick.toLowerCase();
+                if (accounts[key]) {
+                    accounts[key].money = 0;
+                    accounts[key].currentWorld = 'dorota';
+                    accounts[key].owned = { dorota: {}, czemooo: {} };
+                    writeAccounts(accounts);
                 }
-                location.reload();
+            } else {
+                lsRemove(GUEST_SAVE_KEY);
             }
+
+            location.reload();
         }
 
         let ticksSinceSave = 0;
 
         setInterval(() => {
+            if (!gameStarted) return; // ekran logowania - jeszcze nie gramy
+
             if (moneyPerSecond > 0) {
                 money += moneyPerSecond;
                 updateDisplay();
@@ -559,12 +894,43 @@
 
         document.getElementById('app-version').innerText = 'v' + APP_VERSION;
 
-        loadGame();
         dropOldSaves();
         recalcStats();
         applyWorldVisuals();
         renderUpgrades();
         updateDisplay();
+        renderLeaderboard();
+
+        // Enter w którymkolwiek polu loguje
+        ['auth-nick', 'auth-pass'].forEach(id => {
+            document.getElementById(id).addEventListener('keydown', event => {
+                if (event.key === 'Enter') handleLogin();
+            });
+        });
+
+        // Sesja pozwala wrócić do gry bez logowania po odświeżeniu strony
+        (function restoreSession() {
+            let raw = lsGet(SESSION_KEY);
+            if (!raw) return;
+
+            let session;
+            try {
+                session = JSON.parse(raw);
+            } catch (e) {
+                lsRemove(SESSION_KEY);
+                return;
+            }
+            if (!session || typeof session.nick !== 'string') return;
+
+            let account = readAccounts()[session.nick.toLowerCase()];
+            if (!account) {
+                lsRemove(SESSION_KEY); // konto zniknęło, wracamy do logowania
+                return;
+            }
+            startGame({ type: 'account', nick: account.nick });
+        })();
+
+        document.getElementById('auth-nick').focus();
     </script>
 </body>
 </html>
