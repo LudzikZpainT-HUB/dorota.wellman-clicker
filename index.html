@@ -145,6 +145,12 @@
 
         #reset-btn { margin-top: 30px; padding: 8px 16px; background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; border-radius: 6px; cursor: pointer; font-size: 12px;}
         #reset-btn:hover { background: #bae6fd; }
+
+        #app-version {
+            margin-top: 15px; font-size: 11px; letter-spacing: 1px;
+            text-transform: uppercase; color: #94a3b8;
+        }
+        body.world-czemooo #app-version { color: #a5b4fc; }
     </style>
 </head>
 <body class="world-dorota" id="game-body">
@@ -175,10 +181,16 @@
 
     <button id="reset-btn" onclick="fullReset()">Zresetuj grę</button>
 
+    <div id="app-version"></div>
+
     <audio id="sound-dorota" src="plakal.mp3"></audio>
     <audio id="sound-czemooo" src="czemooo.mp3"></audio>
 
     <script>
+        // Wersja aplikacji - podbijana automatycznie przy każdym commicie
+        // przez scripts/bump-version.sh (hook pre-commit). Nie edytuj ręcznie.
+        const APP_VERSION = '1.0.1';
+
         let money = 0;
         let moneyPerClick = 1;
         let moneyPerSecond = 0;
@@ -208,6 +220,63 @@
             dorota: { click: 25, kawka: 40, tvn: 150, show: 600, wywiad: 2200, płacz: 8500, menedzer: 35000, imperium: 120000 },
             czemooo: { c_click: 5000000, c_neony: 10000000, c_grzmot: 50000000, c_awaria: 250000000, c_bos: 1000000000 }
         };
+
+        const SAVE_KEY = 'multiwersum-clicker-save-v1';
+        let isResetting = false;
+
+        function saveGame() {
+            if (isResetting) return;
+            try {
+                localStorage.setItem(SAVE_KEY, JSON.stringify({
+                    version: 1,
+                    money: money,
+                    moneyPerClick: moneyPerClick,
+                    moneyPerSecond: moneyPerSecond,
+                    currentWorld: currentWorld,
+                    costs: costs
+                }));
+            } catch (e) {
+                console.log("Nie udało się zapisać gry", e);
+            }
+        }
+
+        // Zapis może być uszkodzony albo ręcznie zmieniony - bierzemy tylko sensowne liczby
+        function readNumber(value, fallback, min) {
+            let limit = (min === undefined) ? 0 : min;
+            return (typeof value === 'number' && isFinite(value) && value >= limit) ? value : fallback;
+        }
+
+        function loadGame() {
+            let raw = null;
+            try {
+                raw = localStorage.getItem(SAVE_KEY);
+            } catch (e) {
+                return; // np. tryb prywatny bez dostępu do localStorage
+            }
+            if (!raw) return;
+
+            let save;
+            try {
+                save = JSON.parse(raw);
+            } catch (e) {
+                console.log("Zapis jest uszkodzony - startuję nową grę");
+                return;
+            }
+            if (!save || typeof save !== 'object') return;
+
+            money = readNumber(save.money, 0);
+            moneyPerClick = readNumber(save.moneyPerClick, 1, 1);
+            moneyPerSecond = readNumber(save.moneyPerSecond, 0);
+            currentWorld = (save.currentWorld === 'czemooo') ? 'czemooo' : 'dorota';
+
+            // Wczytujemy ceny tylko znanych ulepszeń, resztę zostawiamy domyślną
+            Object.keys(costs).forEach(world => {
+                let savedCosts = (save.costs && save.costs[world]) || {};
+                Object.keys(costs[world]).forEach(id => {
+                    costs[world][id] = readNumber(savedCosts[id], costs[world][id], 1);
+                });
+            });
+        }
 
         function formatMoney(amount) {
             if (amount >= 1e9) return (amount / 1e9).toFixed(2) + 'b';
@@ -282,6 +351,26 @@
 
                 document.getElementById('price-' + id).innerText = formatMoney(worldCosts[id]);
                 updateDisplay();
+                saveGame();
+            }
+        }
+
+        // Wywoływane przy przejściu portalem oraz po wczytaniu zapisu,
+        // żeby odświeżenie strony w Świecie 2 nie wracało do wyglądu Doroty
+        function applyWorldVisuals() {
+            let portal = document.getElementById('czemooo-portal');
+            let container = document.getElementById('image-container');
+
+            if (currentWorld === 'czemooo') {
+                document.getElementById('game-body').className = 'world-czemooo';
+                document.getElementById('world-label').innerText = "Świat 2: Czemoóó";
+                container.innerHTML = `<img id="main-image" src="czemooo.jpg" class="char-image" alt="Postać" onclick="handleClick(event)" onerror="handleImageError(this)">`;
+                portal.style.display = 'none';
+            } else {
+                document.getElementById('game-body').className = 'world-dorota';
+                document.getElementById('world-label').innerText = "Świat 1: Dorota Wellman";
+                container.innerHTML = `<img id="main-image" src="dorota.jpg" class="char-image" alt="Postać" onclick="handleClick(event)" onerror="handleImageError(this)">`;
+                portal.style.display = '';
             }
         }
 
@@ -289,17 +378,12 @@
             if (money < 1000000000) return;
 
             currentWorld = 'czemooo';
-            document.getElementById('game-body').className = 'world-czemooo';
-            document.getElementById('world-label').innerText = "Świat 2: Czemoóó";
-            
-            let container = document.getElementById('image-container');
-            container.innerHTML = `<img id="main-image" src="czemooo.jpg" class="char-image" alt="Postać" onclick="handleClick(event)" onerror="handleImageError(this)">`;
-            
-            document.getElementById('czemooo-portal').style.display = 'none';
-            
+            applyWorldVisuals();
+
             moneyPerSecond = 0;
             renderUpgrades();
             updateDisplay();
+            saveGame();
         }
 
         function renderUpgrades() {
@@ -361,17 +445,41 @@
 
         function fullReset() {
             if(confirm("Na pewno zresetować całą grę?")) {
+                isResetting = true; // blokuje autozapis, który odpala się przy przeładowaniu strony
+                try {
+                    localStorage.removeItem(SAVE_KEY);
+                } catch (e) {
+                    console.log("Nie udało się usunąć zapisu", e);
+                }
                 location.reload();
             }
         }
+
+        let ticksSinceSave = 0;
 
         setInterval(() => {
             if (moneyPerSecond > 0) {
                 money += moneyPerSecond;
                 updateDisplay();
             }
+
+            ticksSinceSave++;
+            if (ticksSinceSave >= 5) {
+                ticksSinceSave = 0;
+                saveGame();
+            }
         }, 1000);
 
+        // Zamknięcie karty lub zminimalizowanie przeglądarki na telefonie
+        window.addEventListener('pagehide', saveGame);
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') saveGame();
+        });
+
+        document.getElementById('app-version').innerText = 'v' + APP_VERSION;
+
+        loadGame();
+        applyWorldVisuals();
         renderUpgrades();
         updateDisplay();
     </script>
