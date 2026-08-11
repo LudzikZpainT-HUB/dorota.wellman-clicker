@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+    <!-- Ikona gry: zielony kafel Świata 1 z dolarem i błyskawicą Czemoóó w narożniku.
+         Kształty są grube i rozsunięte, bo ikona ląduje w karcie w rozmiarze 16 px -
+         przy nakładaniu się elementów robi się z tego plama. -->
+    <defs>
+        <linearGradient id="tlo" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#22c55e"/>
+            <stop offset="1" stop-color="#15803d"/>
+        </linearGradient>
+    </defs>
+
+    <rect width="64" height="64" rx="14" fill="url(#tlo)"/>
+
+    <text x="29" y="50" text-anchor="middle" font-family="Verdana,DejaVu Sans,sans-serif"
+          font-size="52" font-weight="bold" fill="#ffffff">$</text>
+
+    <path d="M55 6 L45 24 L51 24 L44 40 L61 20 L54 20 L60 6 Z" fill="#22d3ee"/>
+</svg>

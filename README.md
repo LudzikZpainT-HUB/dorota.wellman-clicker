@@ -83,7 +83,20 @@ Najprostsze pokrętło tempa to `CPS_COST_GROWTH`: 1.11 daje ~1,5 h do portalu,
 ```
 index.html            cała gra: HTML + CSS + JS
 dorota.jpg, plakal.mp3, czemooo.jpg, czemooo.mp3
+favicon.svg           źródło ikony; .ico i .png są z niego generowane
+favicon.ico, favicon-180.png
 supabase/schema.sql   tabela profiles + RLS dla topki
 scripts/              bump wersji i instalacja hooków
 Dorota clicker/       stara wersja z jednym światem (nieużywana)
 ```
+
+## Ikona
+
+Źródłem jest `favicon.svg`. Po jego zmianie przegeneruj pozostałe rozmiary:
+
+```bash
+./scripts/build-favicon.sh
+```
+
+Skrypt renderuje SVG przez headless Chromium (ImageMagick nie radzi sobie
+z gradientami w SVG — tło wychodzi czarne), a dopiero potem składa `.ico`.
